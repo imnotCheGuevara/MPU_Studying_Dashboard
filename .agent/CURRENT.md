@@ -4,7 +4,7 @@ Updated: 2026-09-07 Asia/Macau.
 
 ## Active state
 
-- **Stage 15R: READY.** This is the only authorized implementation stage. It closes six release-usability standards before the candidate may enter the seven-day trial.
+- **Stage 15R: PARTIAL / user authorization pending.** Implementation is complete: 219 tests in 19 suites, signed build/launch verification, privacy scans, Outlook dormancy, and the reproducible Git baseline pass. Acceptance still requires user-only Keychain approval, in-app SIweb authorization, dedicated Calendar permission, and the final real bilingual/accessibility and bound-event walkthrough.
 - **Stage 15: PARTIAL.** Its technical work is preserved: 213 tests passed, the synthetic classifier fixture improved from 17/20 to 20/20, the signed bundle built/launched, and live Canvas read-only smoke passed. It is not accepted because setup/recovery and mandatory real signed-app lifecycle checks remain incomplete.
 - **Stage 10: PAUSED at 0/7.** Resume only after Stage 15R passes and the main conversation freezes the new candidate.
 - **Stages 13–14: PAUSED/DEFERRED.** Outlook is outside this release pending school IT policy.
@@ -12,8 +12,8 @@ Updated: 2026-09-07 Asia/Macau.
 
 ## Git
 
-- Branch `main`; there is no valid `HEAD` and all project paths appear untracked.
-- Stage 15R must scan for credentials/private artifacts, verify ignore rules, pass its final gate, then establish the first non-destructive reproducible commit and record its identity. Never reset, clean, or discard user files.
+- Branch `main`; initial release baseline `b4d6f23fe56cf8f66ec8e4755230fd2be5e1bdc3`, current clean `HEAD` `61d7d75`.
+- Frozen candidate: `0.3.0 (4)`, executable SHA-256 `f242fba9918e3de51c980368b21cf76ef4a8828299c52d24dfd918d231109923`, CDHash `6ad7527a48729b35e4cf3a8d7ca3d25f0109609e`.
 
 ## Stable boundaries
 
@@ -28,7 +28,7 @@ Updated: 2026-09-07 Asia/Macau.
 
 Swift/SwiftUI macOS app with SQLite, Keychain, read-only Canvas/SIweb connectors, isolated sync, EventKit, notifications/background scheduling, diagnostics, bilingual spatial calendars, controlled DeepSeek announcement classification, correction/personalization, schedule/exam mapping, confirmation gating, and signed `dist/Campus Dashboard.app`.
 
-Known product gap: SIweb authorization exists only as the signed executable's `--siweb-authenticate` WebKit mode; Settings shows health but cannot start it. The complete setup/recovery/action-center/calendar-preview journey is not yet self-contained.
+Stage 15R added the persistent setup checklist, in-app non-persistent SIweb authorization, isolated recovery center, centralized AI review/correction states, Calendar impact preview with confirmation/undo, accessible exam/deadline markers, local aggregate measurement, and disabled Outlook production entry.
 
 ## Stage 15R objective
 
@@ -39,7 +39,7 @@ Known product gap: SIweb authorization exists only as the signed executable's `-
 5. Scanned reproducible initial Git/release baseline with build/signing/hash identity.
 6. Privacy-safe real metrics instrumentation, keeping synthetic estimates separate from observed trial results.
 
-Do not begin the seven-day trial or claim resume metrics in Stage 15R. Its signed build must pass before the main conversation resumes Stage 10.
+Do not begin the seven-day trial or claim resume metrics yet. The user must approve the existing app Keychain item, authorize SIweb from Settings, and restore permission only for the dedicated Campus Dashboard calendar. Then run the final aggregate-only real workflow checks. Only main-thread acceptance may resume Stage 10.
 
 ## Required final gate
 
