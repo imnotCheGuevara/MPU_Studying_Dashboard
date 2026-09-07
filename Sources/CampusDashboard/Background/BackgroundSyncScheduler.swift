@@ -60,9 +60,15 @@ actor BackgroundSyncScheduler {
 
     func evaluate(reason: BackgroundRunReason) async {
         guard !manualPending, let state = try? persistence.load(), state.enabled else { return }
-        let due = state.lastCompletedAt == nil ||
-            clock.now.timeIntervalSince(state.lastCompletedAt!) >= state.targetInterval
-        guard due || reason == .development else { return }
+        // A partial or failed run is still an attempt. Gating only on successful
+        // completion turns the 30-second scheduler poll into an unbounded retry
+        // loop whenever one source remains unhealthy.
+        let cadenceAnchor = state.lastAttemptAt ?? state.lastCompletedAt
+        let due = cadenceAnchor.map {
+            clock.now.timeIntervalSince($0) >= state.targetInterval
+        } ?? true
+        let recoveredNetwork = reason == .networkRecovery && state.lastErrorCategory == "offline"
+        guard due || reason == .development || recoveredNetwork else { return }
         _ = await execute(reason: reason)
     }
 

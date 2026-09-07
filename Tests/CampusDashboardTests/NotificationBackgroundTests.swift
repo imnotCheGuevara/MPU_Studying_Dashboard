@@ -368,6 +368,41 @@ struct NotificationBackgroundTests {
         await scheduler.stop()
     }
 
+    @Test("Persistent single-source failure observes the hourly cadence across scheduler ticks")
+    func persistentFailureCadence() async throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let database = try SQLiteDatabase(path: ":memory:")
+        try BackgroundPersistence(database: database).setEnabled(true, targetInterval: 3_600, now: now)
+        let clock = MutableStage07Clock(now)
+        let runner = TestScheduledRunner(results: [
+            ScheduledSourceResult(sourceAccountID: "canvas", sourceName: "Canvas", errorCategory: nil),
+            ScheduledSourceResult(sourceAccountID: "siweb", sourceName: "SIweb", errorCategory: "source_changed")
+        ])
+        let notifications = CampusNotificationService(
+            database: database, center: TestNotificationCenter(state: .denied), clock: clock
+        )
+        let scheduler = BackgroundSyncScheduler(
+            database: database, runner: runner, notifications: notifications,
+            itemController: TestBackgroundItem(enabled: true), clock: clock
+        )
+
+        await scheduler.evaluate(reason: .launchRecovery)
+        #expect(await runner.count == 1)
+        #expect(try BackgroundPersistence(database: database).load().lastCompletedAt == nil)
+
+        for elapsed in [30.0, 65.0, 600.0, 3_599.0] {
+            clock.set(now.addingTimeInterval(elapsed))
+            await scheduler.evaluate(reason: .scheduled)
+        }
+        #expect(await runner.count == 1)
+
+        clock.set(now.addingTimeInterval(3_600))
+        await scheduler.evaluate(reason: .scheduled)
+        #expect(await runner.count == 2)
+        #expect(await runner.triggers == [.recovery, .scheduled])
+        await scheduler.stop()
+    }
+
     @Test("Notification delivery identity survives database and service recreation")
     func notificationRestartDeduplication() async throws {
         let directory = FileManager.default.temporaryDirectory

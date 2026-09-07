@@ -1059,6 +1059,17 @@ final class DashboardModel: ObservableObject {
         Localizer.text(english, language: language)
     }
 
+    func localizedSourceSetupMessage(for source: SourceKind) -> String {
+        let storedMessage = source == .canvas ? canvasSetupMessage : siwebSetupMessage
+        guard let health = sourceHealth.first(where: { $0.source == source.rawValue }),
+              health.category != .ready else {
+            return text(storedMessage)
+        }
+        return [health.message, health.recoveryAction]
+            .map(text)
+            .joined(separator: " ")
+    }
+
     func title(for section: AppSection) -> String {
         text(section.rawValue)
     }

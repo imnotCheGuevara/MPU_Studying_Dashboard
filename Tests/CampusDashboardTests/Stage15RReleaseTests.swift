@@ -153,6 +153,39 @@ struct Stage15RReleaseTests {
         }
     }
 
+    @Test("Settings localizes composed source health summaries in both languages")
+    @MainActor
+    func bilingualSourceHealthSummaries() async throws {
+        let database = try SQLiteDatabase(path: ":memory:")
+        try database.execute(
+            "INSERT INTO source_accounts(id,source_kind,instance_url,display_name,authorization_state,created_at,updated_at) VALUES('siweb','SIweb','https://example.invalid','SIweb','authorized',1,1)"
+        )
+        try database.execute(
+            "INSERT INTO sync_runs(id,trigger_kind,source_account_id,fetch_state,normalize_state,persistence_state,started_at,finished_at,error_category) VALUES('run','scheduled','siweb','failed','not_started','not_started',2,3,'source_changed')"
+        )
+        let model = DashboardModel(
+            snapshot: .empty,
+            privacyDiagnostics: PrivacyDiagnosticsService(database: database)
+        )
+        await model.refreshDiagnostics()
+
+        model.language = .english
+        #expect(model.localizedSourceSetupMessage(for: .siweb) ==
+            "The source response no longer matches its safe contract. Update or repair the connector before retrying.")
+        #expect(model.localizedSourceSetupMessage(for: .canvas) ==
+            "Not configured. Configure this source before synchronizing.")
+        #expect(Localizer.text("Ready.", language: .english) == "Ready.")
+        #expect(Localizer.text("No action needed.", language: .english) == "No action needed.")
+
+        model.language = .simplifiedChinese
+        #expect(model.localizedSourceSetupMessage(for: .siweb) ==
+            "来源响应不再符合安全数据契约。 重试前请更新或修复连接器。")
+        #expect(model.localizedSourceSetupMessage(for: .canvas) ==
+            "未配置。 请先配置此来源再同步。")
+        #expect(Localizer.text("Ready.", language: .simplifiedChinese) == "已就绪。")
+        #expect(Localizer.text("No action needed.", language: .simplifiedChinese) == "无需操作。")
+    }
+
     @Test("Ignored analysis decisions and observed timing are local and reversible")
     func reversibleLocalDecisionsAndMetrics() throws {
         try withReleaseService { service, _, _, _, database in

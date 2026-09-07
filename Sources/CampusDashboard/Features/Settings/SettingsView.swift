@@ -64,7 +64,7 @@ struct SettingsView: View {
                             .disabled(canvasBaseURL.isEmpty || canvasToken.isEmpty)
                             Button(model.text("Remove Canvas credential"), role: .destructive) { model.revokeCanvas() }
                         }
-                        Text(model.text(model.canvasSetupMessage)).font(.caption).foregroundStyle(.secondary)
+                        Text(model.localizedSourceSetupMessage(for: .canvas)).font(.caption).foregroundStyle(.secondary)
                         Divider()
                         Text(model.text("SIweb — MPU read-only timetable session"))
                             .font(.headline)
@@ -74,7 +74,7 @@ struct SettingsView: View {
                             }
                             Button(model.text("Remove SIweb authorization"), role: .destructive) { model.revokeSIweb() }
                         }
-                        Text(model.text(model.siwebSetupMessage)).font(.caption).foregroundStyle(.secondary)
+                        Text(model.localizedSourceSetupMessage(for: .siweb)).font(.caption).foregroundStyle(.secondary)
                         Text(model.text("The sign-in page uses a non-persistent browser. Login fields are not inspected; only an eligible secure wapps2 session is kept in Keychain."))
                             .font(.caption2).foregroundStyle(.tertiary)
                         Divider()
