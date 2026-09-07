@@ -4,7 +4,7 @@ Status: `PARTIAL`
 
 ## Outcome
 
-The release-candidate implementation, including the 2026-09-07 Canvas/SIweb reconciliation repair, is complete and the automated, privacy, packaging, and signature gates pass. The remaining acceptance gap is the main conversation's real bilingual UI and existing-dedicated-calendar walkthrough. This handoff therefore remains `PARTIAL` and does not start the seven-day trial.
+The release-candidate implementation, including the 2026-09-07 Canvas/SIweb reconciliation repair and follow-up acceptance-blocker repair, is complete and the automated, privacy, packaging, and signature gates pass. The remaining acceptance gap is the main conversation's real bilingual UI and existing-dedicated-calendar walkthrough. This handoff therefore remains `PARTIAL` and does not start the seven-day trial.
 
 No Outlook setup, authorization callback, token lookup, metadata probe, or background traffic is reachable from the production app in this release. The older Stage 13 implementation and its regression tests remain in the repository as dormant historical code.
 
@@ -19,7 +19,7 @@ No Outlook setup, authorization callback, token lookup, metadata probe, or backg
 
 ## Verification performed
 
-- `./scripts/test.sh` — PASS, 226 tests in 20 suites.
+- `./scripts/test.sh` — PASS, 231 tests in 20 suites.
 - `./scripts/build-app.sh` — PASS, production app rebuilt and ad-hoc signed.
 - `./scripts/verify-app.sh` — PASS, macOS application launch and Keychain smoke test.
 - `codesign --verify --deep --strict "dist/Campus Dashboard.app"` — PASS.
@@ -34,9 +34,10 @@ No Outlook setup, authorization callback, token lookup, metadata probe, or backg
 - Bundle identifier: `com.campusdashboard.desktop`
 - Version/build: `0.3.0 (4)`
 - Signature: ad-hoc; `codesign --verify --deep --strict` passed
-- Executable SHA-256: `5343b33a5aeca9c394dfcea6b42cb1696a347a514c7bc8ebc21ab49328034f90`
-- CDHash: `f0c420420cd0726f53449a2a4db74a0cdf02724f`
+- Executable SHA-256: `7aaff3f49915836bdd3be8dc26659f2c5936472b495b4cf44bd6b7ae7a39cb08`
+- CDHash: `77131dcaf8353b624365e4a0d8d521a79c334938`
 - Reconciliation implementation commit: `5df93d7fe544f8baad402e7b77c4b57622029af8` (`Repair Canvas SIweb course reconciliation`).
+- Acceptance-blocker implementation commit: `c4a345ad561749629cc9230bd2b299ade21cb872` (`Repair Stage 15R acceptance blockers`).
 - The handoff-only evidence commit follows this implementation commit; the final handoff commit SHA is reported to the main conversation after creation.
 
 ## 2026-09-07 reconciliation repair
@@ -51,12 +52,12 @@ No Outlook setup, authorization callback, token lookup, metadata probe, or backg
 
 Focused verification:
 
-- `./scripts/test.sh --filter CourseReconciliationTests` — PASS, 7 tests.
+- `./scripts/test.sh --filter CourseReconciliationTests` — PASS, 8 tests.
 - `./scripts/test.sh --filter AcademicSignalTests` — PASS, 19 tests.
 - `./scripts/test.sh --filter NotificationBackgroundTests` — PASS, 17 tests.
 - `./scripts/test.sh --filter PersistenceTests` — PASS, 14 tests.
-- `./scripts/test.sh --filter Stage15RReleaseTests` — PASS, 5 tests.
-- Final `./scripts/test.sh` — PASS, 226 tests in 20 suites.
+- `./scripts/test.sh --filter Stage15RReleaseTests` — PASS, 7 tests.
+- Final `./scripts/test.sh` — PASS, 231 tests in 20 suites.
 - Final build, launch/Keychain smoke, strict code-signing, and `git diff --check` — PASS.
 - Targeted changed-code scans — PASS: no credential-shaped additions, no secret-shaped values in the new files, no new Outlook/Graph/mail endpoint, and no new network/WebKit/SystemConfiguration path. The only URL in the new reconciliation test is under `example.invalid`.
 - Automated bilingual and accessibility assertions for the reconciliation controls and schedule-change semantics — PASS.
@@ -66,6 +67,15 @@ Repair limitations:
 - No real source content, credentials, Keychain values, or personal Calendar event details were read or recorded by this delegated repair.
 - The main conversation must still inspect the signed app with the user's existing lawful sessions and explicitly selected dedicated Campus Dashboard calendar. It must verify Map/Keep separate/Undo/Reset presentation and the mapped schedule-change lifecycle before accepting the stage.
 - No Calendar event was created, updated, or cancelled by the repair or its tests. Outlook remained dormant. Stage 10 remains paused at 0/7.
+
+## 2026-09-07 acceptance-blocker repair
+
+- Canvas term normalization now recognizes the real `(26/27-S1)` prefix. A database-backed six-pair regression confirms five deterministic compatible-family mappings and one proposed-only `COMP4120-411` versus `CSAI3122-311` Natural Language Processing conflict. The conflict is never auto-mapped.
+- Production confirmation/history presentation and release metrics now exclude provider or model identities containing `fixture` or `synthetic`. A production-shaped database regression retains all 15 stored AI rows while exposing only the one non-fixture row; the 14 `Campus Dashboard deterministic fixture` / `fixture-v1` rows remain preserved but non-actionable. Explicit Stage 12 QA preview data is isolated behind its dedicated QA launch mode.
+- Calendar readiness now requires full access and a `.valid` managed-calendar validation result, so the Calendar section and checklist share one state. Canvas/SIweb checklist completion remains security-strict and requires current readable Keychain configuration; stale `source_accounts` authorization cannot substitute for it. Healthy authorized-source helper text states that credential fields stay blank for security and no longer contradicts the checklist.
+- A stored failed sync followed by a later successful sync is presented as historical/recovered, produces no current recovery action, and remains retained in SQLite. No history was deleted.
+- Focused repair gates passed: 8 course-reconciliation tests, 7 Stage 15R release tests, 6 privacy-diagnostics tests, the validated-calendar readiness test, and 19 academic-signal tests. The final complete gate passed 231 tests in 20 suites, followed by production build, launch/Keychain smoke, strict code-sign verification, diff hygiene, credential/private-artifact scans, and prohibited-network/Outlook scans.
+- No real service was accessed, no Outlook path was enabled, and no Apple Calendar write was performed during this repair.
 
 ## Aggregate evaluation
 
@@ -82,18 +92,23 @@ The pre-repair local app database contained mixed historical/development activit
 
 ## Exact user actions required
 
-1. In the main conversation, open the rebuilt `Campus Dashboard 0.3.0 (4)` and inspect the reconciliation card in English and Simplified Chinese, including Map, Keep separate, Undo, Reset, provenance, confidence, and accessible non-color schedule-change semantics.
-2. Complete any macOS Keychain, institutional SIweb/MFA/CAPTCHA, notification, or Calendar permission prompt personally. Do not send a password, token, Cookie, key, or private-source screenshot in chat, and grant Calendar access only for the dedicated Campus Dashboard calendar.
-3. With a real ambiguous pair, verify zero mapping/Calendar writes; with one explicitly accepted unique mapping, preview and confirm the existing-dedicated-calendar schedule-change lifecycle. Only the main conversation may then accept Stage 15R or resume the seven-day trial.
+1. In the main conversation, relaunch the rebuilt `Campus Dashboard 0.3.0 (4)` after satisfying any user-only Keychain/system prompt. Verify that the real six Canvas and six SIweb courses resolve to five confirmed mappings plus the one proposed Natural Language Processing code conflict, and that the conflict is not auto-mapped.
+2. Confirm that the production AI confirmation queue does not show the 14 deterministic fixture rows, while no stored history is deleted. Inspect Canvas, SIweb, and Calendar status in both English and Simplified Chinese: healthy authorized sources must not say “not configured,” secret inputs must remain empty, and a valid selected iCloud dedicated calendar must be complete in both the Calendar section and checklist.
+3. Complete any macOS Keychain, institutional SIweb/MFA/CAPTCHA, notification, or Calendar permission prompt personally. Do not send a password, token, Cookie, key, or private-source screenshot in chat, and grant Calendar access only for the dedicated Campus Dashboard calendar.
+4. With the proposed conflict, verify zero automatic mapping/Calendar writes; with one explicitly accepted unique mapping, preview and confirm the existing-dedicated-calendar schedule-change lifecycle. Only the main conversation may then accept Stage 15R or resume the seven-day trial.
 
 ## Files changed for Stage 15R
 
 - `Resources/Info.plist`
+- `Sources/CampusDashboard/AI/AIModels.swift`
+- `Sources/CampusDashboard/AI/AIParsingCoordinator.swift`
+- `Sources/CampusDashboard/AI/AIPersistence.swift`
 - `Sources/CampusDashboard/App/AppEnvironment.swift`
 - `Sources/CampusDashboard/App/CampusDashboardApp.swift`
 - `Sources/CampusDashboard/App/DashboardModel.swift`
 - `Sources/CampusDashboard/App/Localization.swift`
 - `Sources/CampusDashboard/App/ReleaseReadiness.swift`
+- `Sources/CampusDashboard/App/Stage12QAData.swift`
 - `Sources/CampusDashboard/Calendar/CampusCalendarService.swift`
 - `Sources/CampusDashboard/Connectors/Canvas/CanvasLocalTool.swift`
 - `Sources/CampusDashboard/Features/Confirmations/ConfirmationQueueView.swift`
@@ -104,6 +119,7 @@ The pre-repair local app database contained mixed historical/development activit
 - `Sources/CampusDashboard/Persistence/SQLiteDatabase.swift`
 - `Tests/CampusDashboardTests/CalendarIntegrationTests.swift`
 - `Tests/CampusDashboardTests/PersistenceTests.swift`
+- `Tests/CampusDashboardTests/PrivacyDiagnosticsTests.swift`
 - `Tests/CampusDashboardTests/Stage15RReleaseTests.swift`
 - `docs/stage-15r-evaluation.md`
 - `.agent/handoffs/stage-15r.md`
@@ -126,4 +142,4 @@ Additional files changed by the reconciliation repair:
 
 ## Proposed main-thread current-context update
 
-Keep Stage 15R `PARTIAL` and do not authorize a later stage. Record that the reconciliation implementation, 226-test automation, packaging, signature, scans, and Outlook dormancy pass. The main conversation should perform only the remaining real bilingual UI and existing-dedicated-calendar checks above, then decide whether to accept Stage 15R and resume Stage 10.
+Keep Stage 15R `PARTIAL` and do not authorize a later stage. Record that the reconciliation and acceptance-blocker implementations, 231-test automation, packaging, signature, scans, and Outlook dormancy pass. The main conversation should perform only the remaining real bilingual UI and existing-dedicated-calendar checks above, then decide whether to accept Stage 15R and resume Stage 10.
