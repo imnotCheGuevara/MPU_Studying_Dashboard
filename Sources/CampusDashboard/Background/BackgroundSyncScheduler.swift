@@ -58,6 +58,14 @@ actor BackgroundSyncScheduler {
         return results
     }
 
+    func runManual(source: SourceKind) async -> [ScheduledSourceResult] {
+        manualPending = true
+        await waitUntilIdle()
+        let results = await execute(reason: .manual, source: source)
+        manualPending = false
+        return results
+    }
+
     func evaluate(reason: BackgroundRunReason) async {
         guard !manualPending, let state = try? persistence.load(), state.enabled else { return }
         // A partial or failed run is still an attempt. Gating only on successful
@@ -72,7 +80,9 @@ actor BackgroundSyncScheduler {
         _ = await execute(reason: reason)
     }
 
-    private func execute(reason: BackgroundRunReason) async -> [ScheduledSourceResult] {
+    private func execute(
+        reason: BackgroundRunReason, source: SourceKind? = nil
+    ) async -> [ScheduledSourceResult] {
         guard !running else { return [] }
         running = true
         defer {
@@ -88,7 +98,14 @@ actor BackgroundSyncScheduler {
         case .launchRecovery, .wakeRecovery, .networkRecovery: trigger = .recovery
         }
         try? persistence.recordStart(reason: reason, now: clock.now)
-        let results = await runner.run(trigger: trigger)
+        let results: [ScheduledSourceResult]
+        if let source, let scopedRunner = runner as? any SourceScopedScheduledSyncRunner {
+            results = await scopedRunner.run(trigger: trigger, source: source)
+        } else if source == nil {
+            results = await runner.run(trigger: trigger)
+        } else {
+            results = []
+        }
         for result in results {
             try? await notifications.recordSyncResult(
                 sourceAccountID: result.sourceAccountID,

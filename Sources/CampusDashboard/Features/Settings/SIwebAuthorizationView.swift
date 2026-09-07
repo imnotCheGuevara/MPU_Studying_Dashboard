@@ -47,8 +47,8 @@ struct SIwebAuthorizationView: View {
                 .font(.title2.weight(.semibold))
             Text(model.text("Sign in directly on MPU's non-persistent page. Campus Dashboard does not read the login form. After MPU returns to SIWeb, only the authorized wapps2 session is stored in Keychain."))
                 .font(.caption).foregroundStyle(.secondary)
-            SIwebAuthorizationWebView { message in
-                model.completeSIwebAuthorization(message)
+            SIwebAuthorizationWebView { message, authorized in
+                Task { await model.completeSIwebAuthorization(message, authorized: authorized) }
             }
             .accessibilityLabel(model.text("MPU SIWeb sign-in page"))
             HStack {
@@ -56,7 +56,12 @@ struct SIwebAuthorizationView: View {
                     .font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button(model.text("Cancel")) {
-                    model.completeSIwebAuthorization("SIWeb authorization was cancelled. Other integrations were not changed.")
+                    Task {
+                        await model.completeSIwebAuthorization(
+                            "SIWeb authorization was cancelled. Other integrations were not changed.",
+                            authorized: false
+                        )
+                    }
                 }
             }
         }
@@ -65,7 +70,7 @@ struct SIwebAuthorizationView: View {
 }
 
 private struct SIwebAuthorizationWebView: NSViewRepresentable {
-    let completion: (String) -> Void
+    let completion: (String, Bool) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(completion: completion) }
 
@@ -83,10 +88,10 @@ private struct SIwebAuthorizationWebView: NSViewRepresentable {
 
     @MainActor
     final class Coordinator: NSObject, WKNavigationDelegate {
-        private let completion: (String) -> Void
+        private let completion: (String, Bool) -> Void
         private var completed = false
 
-        init(completion: @escaping (String) -> Void) { self.completion = completion }
+        init(completion: @escaping (String, Bool) -> Void) { self.completion = completion }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             guard !completed, let url = webView.url else { return }
@@ -103,7 +108,10 @@ private struct SIwebAuthorizationWebView: NSViewRepresentable {
         private func store(_ cookies: [HTTPCookie]) {
             guard !completed else { return }
             guard let header = SIwebSessionCookieSerializer.headerData(from: cookies) else {
-                completion("SIWeb authorization reached MPU but no eligible secure session was available. Retry SIweb only.")
+                completion(
+                    "SIWeb authorization reached MPU but no eligible secure session was available. Retry SIweb only.",
+                    false
+                )
                 return
             }
             do {
@@ -118,9 +126,12 @@ private struct SIwebAuthorizationWebView: NSViewRepresentable {
                 try secrets.remove(account: SIwebConfiguration.sessionAccount)
                 try secrets.set(header, account: SIwebConfiguration.sessionAccount)
                 completed = true
-                completion("MPU SIWeb authorization was saved securely in Keychain.")
+                completion("MPU SIWeb authorization was saved securely in Keychain.", true)
             } catch {
-                completion("SIWeb authorization could not be saved securely. Other integrations were not changed.")
+                completion(
+                    "SIWeb authorization could not be saved securely. Other integrations were not changed.",
+                    false
+                )
             }
         }
     }

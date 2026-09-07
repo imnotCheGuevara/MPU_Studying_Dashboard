@@ -36,6 +36,10 @@ protocol ScheduledSyncRunner: Sendable {
     func run(trigger: SyncTrigger) async -> [ScheduledSourceResult]
 }
 
+protocol SourceScopedScheduledSyncRunner: ScheduledSyncRunner {
+    func run(trigger: SyncTrigger, source: SourceKind) async -> [ScheduledSourceResult]
+}
+
 protocol BackgroundItemControlling: Sendable {
     func state() -> BackgroundItemState
     func setEnabled(_ enabled: Bool) throws

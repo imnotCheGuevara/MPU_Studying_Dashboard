@@ -250,9 +250,19 @@ final class DashboardModel: ObservableObject {
         refreshReleaseReadiness()
     }
 
-    func completeSIwebAuthorization(_ message: String) {
+    func completeSIwebAuthorization(_ message: String, authorized: Bool) async {
         siwebSetupMessage = message
         isSIwebAuthorizationPresented = false
+        guard authorized, let backgroundScheduler else {
+            refreshReleaseReadiness()
+            return
+        }
+        isRefreshing = true
+        _ = await backgroundScheduler.runManual(source: .siweb)
+        isRefreshing = false
+        await reloadDashboardData()
+        await refreshDiagnostics()
+        await refreshBackgroundConfiguration()
         refreshReleaseReadiness()
     }
 

@@ -64,7 +64,11 @@ enum SIwebLocalTool {
             print("PASS read-only SIweb smoke test: \(snapshot.meetings.count) meetings, \(cancelled) cancelled.")
             return 0
         } catch {
-            writeError("SIweb smoke test failed: \(safeCategory(error))")
+            if let error = error as? SIwebConnectorError {
+                writeError(error.diagnostic)
+            } else {
+                writeError("SIweb smoke test failed: \(safeCategory(error))")
+            }
             return 3
         }
     }

@@ -1,6 +1,6 @@
 import Foundation
 
-struct ProductionSyncRunner: ScheduledSyncRunner {
+struct ProductionSyncRunner: SourceScopedScheduledSyncRunner {
     let database: SQLiteDatabase
     let calendar: any CalendarService
     let notifications: CampusNotificationService
@@ -18,10 +18,21 @@ struct ProductionSyncRunner: ScheduledSyncRunner {
     }
 
     func run(trigger: SyncTrigger) async -> [ScheduledSourceResult] {
+        await runConfiguredSources(trigger: trigger, source: nil)
+    }
+
+    func run(trigger: SyncTrigger, source: SourceKind) async -> [ScheduledSourceResult] {
+        await runConfiguredSources(trigger: trigger, source: source)
+    }
+
+    private func runConfiguredSources(
+        trigger: SyncTrigger, source requestedSource: SourceKind?
+    ) async -> [ScheduledSourceResult] {
         var accounts: [SyncSourceAccount] = []
         var readers: [any SyncSourceReader] = []
         var instanceBySource: [SourceKind: String] = [:]
-        if let configuration = try? UserDefaultsCanvasConfigurationStore().load() {
+        if requestedSource == nil || requestedSource == .canvas,
+           let configuration = try? UserDefaultsCanvasConfigurationStore().load() {
             instanceBySource[.canvas] = configuration.baseURL.absoluteString
             accounts.append(SyncSourceAccount(
                 id: UUID(), source: .canvas, instanceURL: configuration.baseURL.absoluteString,
@@ -32,7 +43,8 @@ struct ProductionSyncRunner: ScheduledSyncRunner {
                 secretStore: KeychainSecretStore(service: "com.campusdashboard.desktop.canvas")
             )))
         }
-        if let configuration = try? UserDefaultsSIwebConfigurationStore().load() {
+        if requestedSource == nil || requestedSource == .siweb,
+           let configuration = try? UserDefaultsSIwebConfigurationStore().load() {
             instanceBySource[.siweb] = configuration.baseURL.absoluteString
             accounts.append(SyncSourceAccount(
                 id: UUID(), source: .siweb, instanceURL: configuration.baseURL.absoluteString,
@@ -52,14 +64,16 @@ struct ProductionSyncRunner: ScheduledSyncRunner {
         // This only updates local reconciliation metadata and signal targets. It never
         // enqueues Calendar work; Calendar remains behind the existing explicit preview/apply gate.
         _ = try? CourseReconciliationService(database: database).reconcile()
-        // AI runs only after deterministic source transactions commit. Its failure cannot
-        // change source outcomes, and the coordinator is a no-op while AI is disabled.
-        _ = await aiCoordinator?.processPendingCanvasRecords(limit: 100)
-        _ = await academicSignalCoordinator?.processPending(limit: 100)
-        let processor = OutboxProcessor(
-            database: database, calendar: calendar, notifications: notifications
-        )
-        _ = await processor.processPending(limit: 500)
+        if requestedSource == nil {
+            // AI and explicit side-effect work remain part of the ordinary whole-product
+            // sync. A source-scoped post-authorization check cannot trigger unrelated work.
+            _ = await aiCoordinator?.processPendingCanvasRecords(limit: 100)
+            _ = await academicSignalCoordinator?.processPending(limit: 100)
+            let processor = OutboxProcessor(
+                database: database, calendar: calendar, notifications: notifications
+            )
+            _ = await processor.processPending(limit: 500)
+        }
         return outcomes.map { outcome in
             let row = try? database.query(
                 "SELECT id, display_name FROM source_accounts WHERE source_kind=? AND instance_url=? LIMIT 1",

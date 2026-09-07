@@ -26,10 +26,21 @@ struct SIwebConnectorError: Error, Equatable, Sendable, CustomStringConvertible 
 
     var description: String { diagnostic }
 
-    static func structural(_ category: SIwebErrorCategory) -> SIwebConnectorError {
+    static func structural(
+        _ category: SIwebErrorCategory, contractDiagnostic: String? = nil
+    ) -> SIwebConnectorError {
         SIwebConnectorError(
             category: category, retryable: false, retryAfter: nil,
-            diagnostic: "SIweb read failed: \(category.rawValue)"
+            diagnostic: "SIweb read failed: \(category.rawValue)" +
+                (contractDiagnostic.map { " [\($0)]" } ?? "")
+        )
+    }
+
+    func withContractDiagnostic(_ value: String) -> SIwebConnectorError {
+        guard !diagnostic.contains("[") else { return self }
+        return SIwebConnectorError(
+            category: category, retryable: retryable, retryAfter: retryAfter,
+            diagnostic: diagnostic + " [\(value)]"
         )
     }
 }

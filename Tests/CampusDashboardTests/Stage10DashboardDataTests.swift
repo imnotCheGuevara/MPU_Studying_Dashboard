@@ -161,6 +161,50 @@ struct Stage10DashboardDataTests {
         #expect(model.refreshCount == 2)
     }
 
+    @Test("Successful SIweb authorization refreshes only SIweb and replaces stale health")
+    func siwebAuthorizationRefreshesScopedHealth() async throws {
+        let database = try SQLiteDatabase(path: ":memory:")
+        try database.execute(
+            """
+            INSERT INTO source_accounts
+              (id,source_kind,instance_url,display_name,authorization_state,created_at,updated_at)
+            VALUES ('siweb-account','SIweb','https://example.invalid','SIweb','authorized',1,1)
+            """
+        )
+        try database.execute(
+            """
+            INSERT INTO sync_runs
+              (id,trigger_kind,source_account_id,fetch_state,normalize_state,persistence_state,
+               started_at,finished_at,error_category,redacted_error_summary)
+            VALUES ('stale-run','scheduled','siweb-account','failed','not_started','not_started',
+                    2,2,'source_changed','source_changed')
+            """
+        )
+        let runner = Stage10ScopedSIwebRunner(database: database)
+        let notifications = CampusNotificationService(
+            database: database, center: Stage10NoopNotificationCenter()
+        )
+        let scheduler = BackgroundSyncScheduler(
+            database: database, runner: runner, notifications: notifications,
+            itemController: Stage10BackgroundItemController()
+        )
+        let model = DashboardModel(
+            backgroundScheduler: scheduler,
+            privacyDiagnostics: PrivacyDiagnosticsService(database: database)
+        )
+        await model.refreshDiagnostics()
+        #expect(model.sourceHealth.first { $0.source == SourceKind.siweb.rawValue }?.category == .sourceChanged)
+
+        await model.completeSIwebAuthorization("Authorized", authorized: true)
+
+        #expect(await runner.scopedSources == [.siweb])
+        #expect(await runner.wholeTriggers.isEmpty)
+        #expect(model.sourceHealth.first { $0.source == SourceKind.siweb.rawValue }?.category == .ready)
+        #expect(try database.scalarInt(
+            "SELECT COUNT(*) AS value FROM sync_runs WHERE source_account_id='siweb-account' AND persistence_state='committed'"
+        ) == 1)
+    }
+
     @Test("Empty production database and default model never load fixtures")
     func emptyProductionDoesNotUseFixtures() async throws {
         let database = try SQLiteDatabase(path: ":memory:")
@@ -324,6 +368,45 @@ private actor Stage10BlockingRunner: ScheduledSyncRunner {
     func releaseFirst() {
         releaseContinuation?.resume()
         releaseContinuation = nil
+    }
+}
+
+private actor Stage10ScopedSIwebRunner: SourceScopedScheduledSyncRunner {
+    private let database: SQLiteDatabase
+    private(set) var scopedSources: [SourceKind] = []
+    private(set) var wholeTriggers: [SyncTrigger] = []
+
+    init(database: SQLiteDatabase) { self.database = database }
+
+    func run(trigger: SyncTrigger) async -> [ScheduledSourceResult] {
+        wholeTriggers.append(trigger)
+        return []
+    }
+
+    func run(trigger: SyncTrigger, source: SourceKind) async -> [ScheduledSourceResult] {
+        scopedSources.append(source)
+        do {
+            try database.execute(
+                """
+                INSERT INTO sync_runs
+                  (id,trigger_kind,source_account_id,fetch_state,normalize_state,persistence_state,
+                   started_at,finished_at)
+                VALUES ('recovered-run',?,'siweb-account','succeeded','succeeded','committed',3,3)
+                """,
+                bindings: [.text(trigger.rawValue)]
+            )
+            try database.execute(
+                "UPDATE source_accounts SET last_successful_sync=3,updated_at=3 WHERE id='siweb-account'"
+            )
+            return [ScheduledSourceResult(
+                sourceAccountID: "siweb-account", sourceName: "SIweb", errorCategory: nil
+            )]
+        } catch {
+            return [ScheduledSourceResult(
+                sourceAccountID: "siweb-account", sourceName: "SIweb",
+                errorCategory: "persistence"
+            )]
+        }
     }
 }
 

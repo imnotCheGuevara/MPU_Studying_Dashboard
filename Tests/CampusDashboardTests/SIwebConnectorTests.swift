@@ -118,6 +118,31 @@ struct SIwebConnectorTests {
         }
     }
 
+    @Test("Structural diagnostics expose only bounded contract metadata")
+    func redactedContractDiagnostic() throws {
+        let privateMarker = "student-private-marker@example.invalid"
+        let changedHTML = """
+        <html><body><table>
+          <tr><td>Changed heading</td><td>Another heading</td></tr>
+          <tr><td>\(privateMarker)</td><td>opaque-private-value</td></tr>
+        </table></body></html>
+        """
+
+        do {
+            _ = try parser().parse(Data(changedHTML.utf8))
+            Issue.record("Changed private source content unexpectedly parsed")
+        } catch let error as SIwebConnectorError {
+            #expect(error.category == .structuralChange)
+            #expect(error.diagnostic.contains("tables=1"))
+            #expect(error.diagnostic.contains("first_cells=2"))
+            #expect(error.diagnostic.contains("first_masks=0"))
+            #expect(error.diagnostic.contains("row_cells=2,2"))
+            #expect(!error.diagnostic.contains(privateMarker))
+            #expect(!error.diagnostic.contains("opaque-private-value"))
+            #expect(error.diagnostic.count < 320)
+        }
+    }
+
     @Test("Unknown status and timezone-free dates violate the structural contract")
     func invalidContractFields() throws {
         let html = page(course: """

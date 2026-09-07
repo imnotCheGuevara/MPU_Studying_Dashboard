@@ -20,8 +20,19 @@ struct SIwebHTMLParser: Sendable {
 
     func parse(_ data: Data) throws -> SIwebParsedPage {
         guard let html = Self.decodeHTML(data) else {
-            throw SIwebConnectorError.structural(.malformedResponse)
+            throw SIwebConnectorError.structural(
+                .malformedResponse, contractDiagnostic: "encoding=unsupported"
+            )
         }
+        let contractDiagnostic = Self.contractDiagnostic(for: html)
+        do {
+            return try parseDecoded(data: data, html: html)
+        } catch let error as SIwebConnectorError {
+            throw error.withContractDiagnostic(contractDiagnostic)
+        }
+    }
+
+    private func parseDecoded(data: Data, html: String) throws -> SIwebParsedPage {
         if Self.looksLikeLogin(html) {
             throw SIwebConnectorError.structural(.sessionExpired)
         }
@@ -115,6 +126,75 @@ struct SIwebHTMLParser: Sendable {
             meetings: meetings.sorted { $0.sourceObjectID < $1.sourceObjectID },
             nextPageURL: try nextPageURL(in: html)
         )
+    }
+
+    private static func contractDiagnostic(for html: String) -> String {
+        let loginPassword = html.range(
+            of: #"<input[^>]+type\s*=\s*["']password["']"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) != nil
+        let loginForm = html.range(
+            of: #"<form[^>]+(?:action|id)\s*=\s*["'][^"']*(?:login|signin|sso)[^"']*["']"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) != nil
+        let expired = html.range(
+            of: #"data-siweb-session\s*=\s*["']expired["']"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) != nil
+        let schedule = html.range(
+            of: #"data-siweb-contract\s*=\s*["']schedule-v1["']"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) != nil
+        let complete = html.range(
+            of: #"data-siweb-complete\s*=\s*["']true["']"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) != nil
+        let tables = fragments(tag: "table", in: html)
+        let tableRows = tables.map { fragments(tag: "tr", in: $0.inner) }
+        let firstCellCounts = tableRows.map { rows in
+            rows.first.map { cells(in: $0.inner).count } ?? 0
+        }
+        let firstHeaderMasks = tableRows.map { rows -> String in
+            guard let first = rows.first else { return "0" }
+            let values = cells(in: first.inner).map(\.text)
+            var mask = 0
+            for index in 0..<min(values.count, mpuHeaders.count)
+            where normalizedHeader(values[index]) == normalizedHeader(mpuHeaders[index]) {
+                mask |= 1 << index
+            }
+            return String(mask, radix: 16)
+        }
+        let exactFirstHeaders = tableRows.filter { rows in
+            rows.first.map { cells(in: $0.inner).map(\.text) == mpuHeaders } == true
+        }.count
+        let normalizedFirstHeaders = tableRows.filter { rows in
+            rows.first.map {
+                cells(in: $0.inner).map { normalizedHeader($0.text) }
+                    == mpuHeaders.map(normalizedHeader)
+            } == true
+        }.count
+        let rowCellCounts = tableRows.flatMap { rows in
+            rows.prefix(24).map { cells(in: $0.inner).count }
+        }
+        return [
+            "login=\(loginPassword ? 1 : 0)\(loginForm ? 1 : 0)\(expired ? 1 : 0)",
+            "schedule=\(schedule ? 1 : 0)", "complete=\(complete ? 1 : 0)",
+            "tables=\(min(tables.count, 99))",
+            "first_cells=\(boundedList(firstCellCounts))",
+            "first_masks=\(firstHeaderMasks.prefix(12).joined(separator: ","))",
+            "exact_headers=\(min(exactFirstHeaders, 99))",
+            "normalized_headers=\(min(normalizedFirstHeaders, 99))",
+            "row_cells=\(boundedList(rowCellCounts))"
+        ].joined(separator: ";")
+    }
+
+    private static func normalizedHeader(_ value: String) -> String {
+        value.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+            .filter { $0.isLetter || $0.isNumber }
+    }
+
+    private static func boundedList(_ values: [Int]) -> String {
+        values.prefix(24).map { String(min(max($0, 0), 99)) }.joined(separator: ",")
     }
 
     private func parseMPU(data: Data, html: String) throws -> SIwebParsedPage {
