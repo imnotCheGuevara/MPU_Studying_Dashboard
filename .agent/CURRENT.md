@@ -4,16 +4,17 @@ Updated: 2026-09-07 Asia/Macau.
 
 ## Active state
 
-- **Stage 15R: PARTIAL / user-permission walkthrough pending.** Reconciliation commits `5df93d7` and `bcadf8f` add deterministic matching, conflict decisions, canonical courses, correct schedule-change semantics, and synthetic-source filtering; 226 tests/20 suites pass. The real database still has 6 Canvas + 6 SIweb courses and no materialized mappings because the rebuilt app is waiting at a user-only Keychain/system-permission boundary. Acceptance requires unlocking it, restoring dedicated Calendar access, then checking the real reconciliation UI and preview-only calendar lifecycle.
+- **Stage 15S: IN PROGRESS.** The Stage 15R signed-app walkthrough found a release-blocking real defect: a Canvas 311/312 cancellation containing multiple weekday/date roles was inferred as a standalone Friday event instead of targeting the user's mapped Monday SIweb meeting. The active signal is `confirmed + no_target`; audit records a confirm transition, while later reconciliation can clear its target without revoking Calendar eligibility or returning it to review. Stage 15S must repair section/date-role targeting, stale-confirmation safety, correction UX, and Calendar projection before Stage 15R can pass.
+- **Stage 15R: PARTIAL.** SIweb in-app authorization now closes correctly and immediately runs exactly one isolated successful SIweb sync (98 records); Canvas remains ready and the former 35-second loop did not recur. Calendar access is restored to the dedicated iCloud calendar. Final acceptance is blocked by Stage 15S and then a user-confirmed real Calendar lifecycle.
 - **Stage 15: PARTIAL.** Its technical work is preserved: 213 tests passed, the synthetic classifier fixture improved from 17/20 to 20/20, the signed bundle built/launched, and live Canvas read-only smoke passed. It is not accepted because setup/recovery and mandatory real signed-app lifecycle checks remain incomplete.
 - **Stage 10: PAUSED at 0/7.** Resume only after Stage 15R passes and the main conversation freezes the new candidate.
 - **Stages 13–14: PAUSED/DEFERRED.** Outlook is outside this release pending school IT policy.
-- Latest accepted stage: **12**. Direct current evidence: `.agent/handoffs/stage-15r.md`.
+- Latest accepted stage: **12**. Direct current evidence: `.agent/handoffs/stage-15r.md`; active contract: `.agent/stages/stage-15s.md`.
 
 ## Git
 
-- Branch `main`; initial release baseline `b4d6f23fe56cf8f66ec8e4755230fd2be5e1bdc3`, reconciliation implementation `5df93d7`, handoff `bcadf8f`; only main-control status edits are pending commit.
-- Current candidate: `0.3.0 (4)`, executable SHA-256 `5343b33a5aeca9c394dfcea6b42cb1696a347a514c7bc8ebc21ab49328034f90`, CDHash `f0c420420cd0726f53449a2a4db74a0cdf02724f`. It is not frozen until the real walkthrough passes.
+- Branch `main`; latest Stage 15R repair commits are `7a6c8d5` and `387af8e`; main-control Stage 15S authorization edits are pending commit.
+- Current candidate is `0.3.0 (4)`, executable SHA-256 `60402081d9ed538d24a7d682e480216d5d527ca4fe8fa088f14c91b880375c89`, CDHash `e6a68ab28caf0124e4884cca25f0ba167f95c41f`. It is not frozen and is superseded for repair by Stage 15S.
 
 ## Stable boundaries
 
@@ -32,16 +33,15 @@ Stage 15R added the persistent setup checklist, in-app non-persistent SIweb auth
 
 The 2026-09-07 repair adds persistent Canvas↔SIweb mapping decisions and audit, unique high-confidence auto-mapping, explicit Map/Keep separate/Undo/Reset for code conflicts, canonical dashboard/filter/notification identities, local re-resolution of schedule-change signals, distinct non-deadline schedule-change presentation, and production filtering of `Stage10Test`/synthetic provenance without deleting stored rows.
 
-## Stage 15R objective
+## Stage 15S objective
 
-1. Complete in-app setup for Canvas, SIweb, dedicated Calendar, notifications, and optional DeepSeek.
-2. Actionable privacy-safe recovery for each supported failure category with subsystem isolation.
-3. Centralized persistent/reversible AI review, correction and confirmation, including empty `other` and provider fallback.
-4. Explicit Calendar create/update/cancel preview, confirmation/undo, idempotence, and accessible exam semantics.
-5. Scanned reproducible initial Git/release baseline with build/signing/hash identity.
-6. Privacy-safe real metrics instrumentation, keeping synthetic estimates separate from observed trial results.
+1. Resolve multi-section schedule-change text using the confirmed course mapping, local section, semantic date role, and SIweb meeting candidates.
+2. Never render or write an unresolved schedule change as a standalone confirmed event.
+3. Return stale `confirmed + no_target` states to visible, correctable, Calendar-ineligible review without deleting source history.
+4. Require an exact Calendar preview and explicit user confirmation regardless of confidence.
+5. Preserve correction learning, exam styling, privacy, Outlook dormancy, and dedicated-calendar ownership.
 
-Do not begin the seven-day trial or claim resume metrics yet. The user must complete the visible Keychain/system prompt and restore permission only for the dedicated Campus Dashboard calendar. Then inspect the real reconciliation controls, confirm that canonical course controls replace duplicates and synthetic sources are hidden, and verify a preview-before-write schedule-change lifecycle. Only main-thread acceptance may resume Stage 10.
+Do not begin the seven-day trial or claim resume metrics. Do not perform a real EventKit mutation without action-time confirmation from the user in the main conversation. Stage 15R remains blocked until Stage 15S passes and the repaired real lifecycle is revalidated.
 
 ## Required final gate
 
@@ -57,4 +57,4 @@ Also run focused setup/recovery/AI/Calendar tests, bilingual signed-app and acce
 
 ## Lightweight continuation
 
-Read only `AGENTS.md`, `.agent/CURRENT.md`, `.agent/stages/stage-15r.md`, and `.agent/handoffs/stage-15r.md`. Use targeted `rg -n` and narrow `sed -n` only for a named gap. Do not read Outlook history, all handoffs, the full specification, or old prompt collection. Stage task writes scoped product/tests and `.agent/handoffs/stage-15r.md`; central control files remain main-thread owned.
+Read only `AGENTS.md`, `.agent/CURRENT.md`, `.agent/stages/stage-15s.md`, and the directly relevant sections of `.agent/handoffs/stage-15r.md`. Use targeted `rg -n` and narrow `sed -n` only for a named gap. Do not read Outlook history, all handoffs, the full specification, or old prompt collection. Stage task writes scoped product/tests and `.agent/handoffs/stage-15s.md`; central control files remain main-thread owned.

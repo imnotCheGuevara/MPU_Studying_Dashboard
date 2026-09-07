@@ -23,6 +23,7 @@ The main project conversation owns this roadmap and accepts each stage. Stage co
 | 14 | Outlook read-only mail sync and local mailbox UI (deferred) | Accepted 13 and future authorization | Preserved for a later Outlook release path |
 | 15 | Final integration, AI field repair, and release candidate | 12; Outlook deferred | Correctable local feedback improves announcement classification; confirmed schedule/exam signals reconcile safely; measurable no-Outlook integration passes and a signed build is frozen for Stage 10 |
 | 15R | Release usability closure | 15 partial | All setup is available in-app; failures are recoverable; AI review and Calendar actions are explicit; the release is reproducible and instrumented for honest seven-day metrics |
+| 15S | Schedule-change targeting safety repair | 15R partial; real acceptance defect | Multi-section cancellation dates are section-aware, uniquely bound to SIweb meetings, never shown or written as standalone confirmed changes when unresolved, and always require explicit confirmation |
 
 ## Parallelism policy
 
@@ -30,7 +31,7 @@ The main project conversation owns this roadmap and accepts each stage. Stage co
 - Stages 06 and 07 may run in parallel after Stage 05 is accepted, but only in isolated Git worktrees. In the same checkout, run them sequentially.
 - All other dependency edges are sequential.
 - The DeepSeek track ended with accepted Stage 12. The Outlook track (Stages 13–14) is explicitly deferred pending school IT guidance and is not on the current critical path.
-- Stage 15R is the active no-Outlook release-usability gate. It closes the six user-approved release standards exposed by Stage 15 field review. Only after Stage 15R passes and freezes a reproducible signed Canvas/SIweb/DeepSeek candidate may the main conversation resume Stage 10 at 0/7; Day 1 starts on the next complete Asia/Macau day after setup revalidation.
+- Stage 15S is the active release-blocking repair discovered during the Stage 15R real walkthrough. Stage 15R cannot pass until Stage 15S passes and the corrected real schedule-change/Calendar lifecycle is revalidated. Only then may the main conversation freeze a reproducible no-Outlook candidate and resume Stage 10 at 0/7.
 - Historical Stage 10R gate remains satisfied. Outlook work performed offline during partial Stage 13 earns no acceptance credit and must remain dormant during the trial.
 - Parallel stages must not edit the same central planning files. Each writes only its own handoff.
 

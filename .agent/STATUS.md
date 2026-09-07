@@ -2,7 +2,7 @@
 
 Only the main project conversation updates this file after inspecting and accepting a stage handoff.
 
-Current authorized stage: **Stage 15R**
+Current authorized stage: **Stage 15S**
 
 | Stage | Status | Accepted handoff | Notes |
 | --- | --- | --- | --- |
@@ -23,6 +23,7 @@ Current authorized stage: **Stage 15R**
 | 14 | DEFERRED | — | Outlook-only implementation is outside the active release path and cannot start while Stage 13 is paused |
 | 15 | PARTIAL | `.agent/handoffs/stage-15.md` (`PARTIAL`) | Technical integration candidate delivered, but terminal-only SIweb authorization and incomplete setup/recovery/real lifecycle prevent release acceptance; superseded for repair by Stage 15R |
 | 15R | PARTIAL | `.agent/handoffs/stage-15r.md` (`PARTIAL`) | Reconciliation repair committed (`5df93d7`, handoff `bcadf8f`); 226 tests/20 suites, build, signature, safety scans, conflict decisions, canonical presentation, schedule-change semantics, and synthetic-source exclusion pass. Awaiting the user-only Keychain/system prompt, dedicated Calendar permission, and main-thread real signed-app walkthrough before acceptance |
+| 15S | IN PROGRESS | `.agent/handoffs/stage-15s.md` | Release-blocking real defect: a multi-section cancellation selected the wrong weekday, failed to bind the matching SIweb meeting, and remained displayed as confirmed after its target was lost. Repair must restore explicit confirmation and Calendar safety before Stage 15R can be accepted. |
 
 Status meanings:
 
