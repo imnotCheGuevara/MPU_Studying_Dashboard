@@ -19,7 +19,7 @@ No Outlook setup, authorization callback, token lookup, metadata probe, or backg
 
 ## Verification performed
 
-- `./scripts/test.sh` — PASS, 233 tests in 20 suites.
+- `./scripts/test.sh` — PASS, 234 tests in 20 suites.
 - `./scripts/build-app.sh` — PASS, production app rebuilt and ad-hoc signed.
 - `./scripts/verify-app.sh` — PASS, macOS application launch and Keychain smoke test.
 - `codesign --verify --deep --strict "dist/Campus Dashboard.app"` — PASS.
@@ -34,11 +34,12 @@ No Outlook setup, authorization callback, token lookup, metadata probe, or backg
 - Bundle identifier: `com.campusdashboard.desktop`
 - Version/build: `0.3.0 (4)`
 - Signature: ad-hoc; `codesign --verify --deep --strict` passed
-- Executable SHA-256: `de72faf65cf395edd301176d37bc79e2f3742ac1949fd79a153a7aa8ad86f421`
-- CDHash: `7a7b1f7042ccb4904afd91ef7a4ac33519e14569`
+- Executable SHA-256: `5b5c896a6d897033cc0ae749ae0ce3d0781c893a8ab230f3706c3188ef42fa97`
+- CDHash: `3235444dd3e1011e31d8e48a1be4ef62a868f004`
 - Reconciliation implementation commit: `5df93d7fe544f8baad402e7b77c4b57622029af8` (`Repair Canvas SIweb course reconciliation`).
 - Acceptance-blocker implementation commit: `c4a345ad561749629cc9230bd2b299ade21cb872` (`Repair Stage 15R acceptance blockers`).
 - Automatic-cadence and source-localization implementation commit: `3d6cbacd22f1e777ac7508968f94a760d6b63a30` (`Fix automatic sync cadence and source localization`).
+- Calendar recovery-localization implementation commit: `c6b04b46328326d4e5931678f46aeab60789fab8` (`Localize Calendar recovery summary`).
 - The handoff-only evidence commit follows this implementation commit; the final handoff commit SHA is reported to the main conversation after creation.
 
 ## 2026-09-07 reconciliation repair
@@ -89,6 +90,8 @@ Repair limitations:
 - Final gates: `./scripts/test.sh` PASS (233 tests, 20 suites); production build PASS; app launch/isolated Keychain smoke PASS; strict ad-hoc signature PASS; diff hygiene, credential/private-artifact, and prohibited-network/Outlook scans PASS. The only new URL is `https://example.invalid` in a database-backed localization test. No real service, existing Keychain credential, Outlook path, or Apple Calendar event was accessed or changed.
 
 ## Aggregate evaluation
+
+The final narrow Calendar localization repair maps the recovery-center detail `Calendar access is not available.` to Simplified Chinese while preserving the English source key. Its focused regression also verifies the already-localized Calendar unaffected-features and recovery-action copy in the same generated recovery item. The focused test passed, followed by the complete 234-test/20-suite gate, production build, launch/isolated Keychain smoke, strict signature verification, diff hygiene, credential/private-artifact scan, and changed-network/Outlook scan. No network path, permission behavior, credential handling, source data, or Calendar mutation changed.
 
 Synthetic verification is represented only by the automated tests above. It covers all nine recovery categories, bilingual critical labels, reversible ignored decisions, observed-timing persistence, Calendar preview-before-write, exam distinction, idempotence, and undo.
 
@@ -156,4 +159,4 @@ Additional files changed by the reconciliation repair:
 
 ## Proposed main-thread current-context update
 
-Keep Stage 15R `PARTIAL` and do not authorize a later stage. Record that the reconciliation, acceptance-blocker, cadence, and localization implementations, 233-test automation, packaging, signature, scans, and Outlook dormancy pass. The main conversation should perform only the remaining SIweb reauthorization/retest, automatic-cadence observation, real bilingual UI, and existing-dedicated-calendar checks above, then decide whether to accept Stage 15R and resume Stage 10.
+Keep Stage 15R `PARTIAL` and do not authorize a later stage. Record that the reconciliation, acceptance-blocker, cadence, and localization implementations, 234-test automation, packaging, signature, scans, and Outlook dormancy pass. The main conversation should perform only the remaining SIweb reauthorization/retest, automatic-cadence observation, real bilingual UI, and existing-dedicated-calendar checks above, then decide whether to accept Stage 15R and resume Stage 10.
