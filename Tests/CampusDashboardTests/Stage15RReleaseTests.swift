@@ -133,6 +133,23 @@ struct Stage15RReleaseTests {
         #expect(categories.contains(.notificationPermission))
     }
 
+    @Test("Calendar permission recovery summary is bilingual")
+    func bilingualCalendarPermissionRecovery() throws {
+        let item = try #require(ReleaseReadinessService.recoveries(
+            sources: [], calendar: .denied, notifications: .authorized,
+            aiFailureCategories: []
+        ).first(where: { $0.category == .calendarPermission }))
+
+        #expect(Localizer.text(item.detail, language: .english) ==
+            "Calendar access is not available.")
+        #expect(Localizer.text(item.detail, language: .simplifiedChinese) ==
+            "日历访问权限不可用。")
+        #expect(Localizer.text(item.category.unaffectedFeatures, language: .simplifiedChinese) ==
+            "同步、审核和通知仍可使用；不会更改任何日历事项。")
+        #expect(Localizer.text(item.category.recoveryAction, language: .simplifiedChinese) ==
+            "在系统设置中恢复日历权限，然后重新验证专用日历。")
+    }
+
     @Test("Release setup, recovery, review, and preview labels are bilingual")
     func bilingualReleaseSurfaces() {
         let keys = [

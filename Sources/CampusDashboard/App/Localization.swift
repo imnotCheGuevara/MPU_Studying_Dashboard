@@ -183,6 +183,7 @@ enum Localizer {
         "Retry later; repeated attempts remain idempotent.": "稍后重试；重复操作仍保持幂等。",
         "Keep the retained local result and retry after the connector or provider is repaired.": "保留本地结果，在连接器或提供方修复后重试。",
         "Review the local request/token budget, then explicitly reprocess.": "检查本地请求／令牌预算，然后明确重新处理。",
+        "Calendar access is not available.": "日历访问权限不可用。",
         "Restore Calendar access in System Settings, then revalidate the dedicated calendar.": "在系统设置中恢复日历权限，然后重新验证专用日历。",
         "Restore Notifications in System Settings, then enable them here.": "在系统设置中恢复通知权限，然后在此启用。",
         "No actionable academic signal was found. You can correct this result locally or ignore it.": "未找到可执行的学业信号。你可以在本地修正或忽略此结果。",
