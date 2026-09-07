@@ -4,6 +4,28 @@ import Testing
 
 @Suite("Stage 09 privacy, diagnostics, and cleanup")
 struct PrivacyDiagnosticsTests {
+    @Test("A later successful sync labels retained errors as historical recovery")
+    func historicalRecoveryIsNotCurrentFailure() throws {
+        let database = try SQLiteDatabase(path: ":memory:")
+        try database.execute(
+            "INSERT INTO source_accounts(id,source_kind,instance_url,display_name,authorization_state,last_successful_sync,created_at,updated_at) VALUES('account-id','Canvas','https://fixture.invalid','Canvas','authorized',20,1,20)"
+        )
+        try database.execute(
+            "INSERT INTO sync_runs(id,trigger_kind,source_account_id,fetch_state,normalize_state,persistence_state,started_at,finished_at,error_category) VALUES('old-failure','manual','account-id','failed','not_started','not_started',9,10,'offline')"
+        )
+        let health = try #require(PrivacyDiagnosticsService(database: database).sourceHealth().first {
+            $0.source == SourceKind.canvas.rawValue
+        })
+        #expect(health.category == .ready)
+        #expect(health.message == "Ready. A previous issue was recovered.")
+        #expect(health.recoveryAction.contains("Historical recovery"))
+        #expect(ReleaseReadinessService.recoveries(
+            sources: [health], calendar: .fullAccess, notifications: .authorized,
+            aiFailureCategories: []
+        ).isEmpty)
+        #expect(try database.scalarInt("SELECT COUNT(*) FROM sync_runs") == 1)
+    }
+
     @Test("Every local-data category preserves credentials and Calendar bindings")
     func categoryClearingIsIndependent() throws {
         for category in LocalDataCategory.allCases {

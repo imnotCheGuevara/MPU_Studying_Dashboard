@@ -119,6 +119,12 @@ final class AIPersistence: @unchecked Sendable {
         return all.filter { states.contains($0.confirmationState) }
     }
 
+    func productionRecords(states: Set<AIConfirmationState>? = nil) throws -> [AIParseRecord] {
+        try records(states: states).filter {
+            ProductionAIResultPolicy.includes(provider: $0.provider, model: $0.model)
+        }
+    }
+
     func record(id: UUID) throws -> AIParseRecord? {
         try database.query("SELECT * FROM ai_parse_results WHERE id=?", bindings: [.text(id.uuidString)]).first.flatMap(decode)
     }

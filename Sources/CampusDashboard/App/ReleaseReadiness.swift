@@ -151,16 +151,18 @@ final class ReleaseReadinessService: @unchecked Sendable {
     func sourceSetupItems(
         calendarReady: Bool, notificationsReady: Bool, deepSeekReady: Bool
     ) -> [ReleaseSetupItem] {
-        let canvasConfigured = (try? canvasConfigurations.load()) != nil
+        let canvasCredentialConfigured = (try? canvasConfigurations.load()) != nil
             && ((try? canvasSecrets.data(account: CanvasConfiguration.tokenAccount).isEmpty == false) ?? false)
-        let siwebConfigured = (try? siwebConfigurations.load()) != nil
+        let siwebCredentialConfigured = (try? siwebConfigurations.load()) != nil
             && ((try? siwebSecrets.data(account: SIwebConfiguration.sessionAccount).isEmpty == false) ?? false)
         return [
-            .init(integration: .canvas, isComplete: canvasConfigured,
-                  detail: canvasConfigured ? "Configured securely." : "Add the Canvas HTTPS address and access token.",
+            .init(integration: .canvas, isComplete: canvasCredentialConfigured,
+                  detail: canvasCredentialConfigured ? "Configured securely."
+                    : "Add the Canvas HTTPS address and access token.",
                   minimumData: "Reads active courses, assignments, and announcements; the token stays in Keychain."),
-            .init(integration: .siweb, isComplete: siwebConfigured,
-                  detail: siwebConfigured ? "Authorized session is in Keychain." : "Sign in on MPU's non-persistent page.",
+            .init(integration: .siweb, isComplete: siwebCredentialConfigured,
+                  detail: siwebCredentialConfigured ? "Authorized session is in Keychain."
+                    : "Sign in on MPU's non-persistent page.",
                   minimumData: "Reads the approved timetable page; Campus Dashboard never reads login fields."),
             .init(integration: .calendar, isComplete: calendarReady,
                   detail: calendarReady ? "Dedicated calendar verified." : "Grant access and select or create one dedicated calendar.",
@@ -206,16 +208,16 @@ final class ReleaseReadinessService: @unchecked Sendable {
             "SELECT COUNT(*) total,SUM(CASE WHEN r.persistence_state='committed' THEN 1 ELSE 0 END) ok,AVG(CASE WHEN r.finished_at IS NOT NULL THEN r.finished_at-r.started_at END) latency FROM sync_runs r JOIN source_accounts sa ON sa.id=r.source_account_id WHERE LOWER(sa.source_kind) IN ('canvas','siweb')"
         ).first
         let corrections = try database.scalarInt(
-            "SELECT COUNT(*) FROM academic_signal_audit a JOIN academic_signals s ON s.id=a.signal_id JOIN source_accounts sa ON sa.id=s.source_account_id WHERE a.action IN ('correct','correct_analysis') AND LOWER(sa.source_kind) IN ('canvas','siweb')"
+            "SELECT COUNT(*) FROM academic_signal_audit a JOIN academic_signals s ON s.id=a.signal_id JOIN source_accounts sa ON sa.id=s.source_account_id WHERE a.action IN ('correct','correct_analysis') AND LOWER(sa.source_kind) IN ('canvas','siweb') AND LOWER(s.provider) NOT LIKE '%fixture%' AND LOWER(s.provider) NOT LIKE '%synthetic%' AND LOWER(s.model) NOT LIKE '%fixture%' AND LOWER(s.model) NOT LIKE '%synthetic%'"
         )
         let failures = try database.scalarInt(
-            "SELECT COUNT(*) FROM academic_signal_analyses a JOIN source_accounts sa ON sa.id=a.source_account_id WHERE a.status='failed' AND LOWER(sa.source_kind) IN ('canvas','siweb')"
+            "SELECT COUNT(*) FROM academic_signal_analyses a JOIN source_accounts sa ON sa.id=a.source_account_id WHERE a.status='failed' AND LOWER(sa.source_kind) IN ('canvas','siweb') AND LOWER(a.provider) NOT LIKE '%fixture%' AND LOWER(a.provider) NOT LIKE '%synthetic%' AND LOWER(a.model) NOT LIKE '%fixture%' AND LOWER(a.model) NOT LIKE '%synthetic%'"
         )
         let recovered = try database.scalarInt(
-            "SELECT COUNT(DISTINCT f.announcement_id) FROM academic_signal_analyses f JOIN academic_signal_analyses s ON s.announcement_id=f.announcement_id AND s.created_at>f.created_at JOIN source_accounts sa ON sa.id=f.source_account_id WHERE f.status='failed' AND s.status IN ('analyzed','deterministic_only') AND LOWER(sa.source_kind) IN ('canvas','siweb')"
+            "SELECT COUNT(DISTINCT f.announcement_id) FROM academic_signal_analyses f JOIN academic_signal_analyses s ON s.announcement_id=f.announcement_id AND s.created_at>f.created_at JOIN source_accounts sa ON sa.id=f.source_account_id WHERE f.status='failed' AND s.status IN ('analyzed','deterministic_only') AND LOWER(sa.source_kind) IN ('canvas','siweb') AND LOWER(f.provider) NOT LIKE '%fixture%' AND LOWER(f.provider) NOT LIKE '%synthetic%' AND LOWER(f.model) NOT LIKE '%fixture%' AND LOWER(f.model) NOT LIKE '%synthetic%' AND LOWER(s.provider) NOT LIKE '%fixture%' AND LOWER(s.provider) NOT LIKE '%synthetic%' AND LOWER(s.model) NOT LIKE '%fixture%' AND LOWER(s.model) NOT LIKE '%synthetic%'"
         )
         let criticalMisses = try database.scalarInt(
-            "SELECT COUNT(*) FROM academic_signal_audit a JOIN academic_signals s ON s.id=a.signal_id JOIN academic_signal_analyses n ON n.id=s.analysis_id JOIN source_accounts sa ON sa.id=s.source_account_id WHERE a.action='correct_analysis' AND n.primary_category='other' AND s.category IN ('course_schedule_change','assignment_deadline','exam_time') AND LOWER(sa.source_kind) IN ('canvas','siweb')"
+            "SELECT COUNT(*) FROM academic_signal_audit a JOIN academic_signals s ON s.id=a.signal_id JOIN academic_signal_analyses n ON n.id=s.analysis_id JOIN source_accounts sa ON sa.id=s.source_account_id WHERE a.action='correct_analysis' AND n.primary_category='other' AND s.category IN ('course_schedule_change','assignment_deadline','exam_time') AND LOWER(sa.source_kind) IN ('canvas','siweb') AND LOWER(n.provider) NOT LIKE '%fixture%' AND LOWER(n.provider) NOT LIKE '%synthetic%' AND LOWER(n.model) NOT LIKE '%fixture%' AND LOWER(n.model) NOT LIKE '%synthetic%' AND LOWER(s.provider) NOT LIKE '%fixture%' AND LOWER(s.provider) NOT LIKE '%synthetic%' AND LOWER(s.model) NOT LIKE '%fixture%' AND LOWER(s.model) NOT LIKE '%synthetic%'"
         )
         let duplicateBindings = try database.scalarInt(
             """

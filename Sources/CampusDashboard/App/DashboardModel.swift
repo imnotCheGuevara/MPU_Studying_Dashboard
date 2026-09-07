@@ -51,6 +51,7 @@ final class DashboardModel: ObservableObject {
     @Published private(set) var refreshCount = 0
     @Published private(set) var persistenceError: String?
     @Published private(set) var calendarAccessStatus: CalendarAccessStatus = .notDetermined
+    @Published private(set) var dedicatedCalendarValidationState: ManagedCalendarValidationState?
     @Published private(set) var calendarSources: [CalendarSourceDescriptor] = []
     @Published private(set) var writableCalendars: [CalendarDescriptor] = []
     @Published private(set) var calendarMessage = "Calendar sync is not configured."
@@ -117,6 +118,7 @@ final class DashboardModel: ObservableObject {
     private let outlookIsPreviewOverride: Bool
     private let privacyDiagnostics: PrivacyDiagnosticsService?
     private let releaseReadiness: ReleaseReadinessService?
+    private let showsSyntheticAIResultsForQA: Bool
     private let nowProvider: @Sendable () -> Date
     let presentationTimeZone: TimeZone
     private var recoveryMonitor: RuntimeRecoveryMonitor?
@@ -138,6 +140,7 @@ final class DashboardModel: ObservableObject {
         outlookPreviewStatus: OutlookAuthorizationStatus? = nil,
         privacyDiagnostics: PrivacyDiagnosticsService? = nil,
         releaseReadiness: ReleaseReadinessService? = nil,
+        showsSyntheticAIResultsForQA: Bool = false,
         now: @escaping @Sendable () -> Date = { Date() },
         timeZone: TimeZone = .autoupdatingCurrent
     ) {
@@ -156,6 +159,7 @@ final class DashboardModel: ObservableObject {
         outlookIsPreviewOverride = outlookPreviewStatus != nil
         self.privacyDiagnostics = privacyDiagnostics
         self.releaseReadiness = releaseReadiness
+        self.showsSyntheticAIResultsForQA = showsSyntheticAIResultsForQA
         nowProvider = now
         presentationTimeZone = timeZone
         if let scenario, snapshot == nil { applyScenario(scenario) }
@@ -177,6 +181,7 @@ final class DashboardModel: ObservableObject {
         try? await notificationService?.reconcileReminders()
         await refreshBackgroundConfiguration()
         refreshAIConfiguration()
+        try? await refreshCalendarConfiguration()
         await refreshDiagnostics()
         refreshReleaseReadiness()
         if let backgroundScheduler {
@@ -195,7 +200,7 @@ final class DashboardModel: ObservableObject {
     func refreshReleaseReadiness() {
         guard let releaseReadiness else { return }
         setupItems = releaseReadiness.sourceSetupItems(
-            calendarReady: calendarAccessStatus == .fullAccess && selectedDedicatedCalendarID != nil,
+            calendarReady: calendarAccessStatus == .fullAccess && dedicatedCalendarValidationState == .valid,
             notificationsReady: notificationAccessStatus == .authorized && notificationPreferences.enabled,
             deepSeekReady: aiSettings.enabled && aiHasKey
         )
@@ -349,10 +354,16 @@ final class DashboardModel: ObservableObject {
             deepSeekUsage = aiCoordinator.deepSeekUsage() ?? DeepSeekUsageSnapshot(
                 requestCount: 0, inputTokens: 0, outputTokens: 0, estimatedCostMicrousd: 0
             )
-            aiConfirmations = try aiCoordinator.pendingConfirmations()
-            aiHistory = try aiCoordinator.history().filter { $0.confirmationState != .pending && $0.confirmationState != .undone }
-            academicAnalyses = try academicSignalCoordinator?.analyses() ?? []
-            academicSignals = try academicSignalCoordinator?.activeSignals() ?? []
+            aiConfirmations = try aiCoordinator.productionPendingConfirmations()
+            aiHistory = try aiCoordinator.productionHistory().filter { $0.confirmationState != .pending && $0.confirmationState != .undone }
+            let analyses = try academicSignalCoordinator?.analyses() ?? []
+            let signals = try academicSignalCoordinator?.activeSignals() ?? []
+            academicAnalyses = showsSyntheticAIResultsForQA ? analyses : analyses.filter {
+                ProductionAIResultPolicy.includes(provider: $0.provider, model: $0.model)
+            }
+            academicSignals = showsSyntheticAIResultsForQA ? signals : signals.filter {
+                ProductionAIResultPolicy.includes(provider: $0.provider, model: $0.model)
+            }
             if aiSettings.enabled && aiSettings.providerKind == .external {
                 aiMessage = "DeepSeek is enabled with current consent. Only approved bounded fields may leave this Mac."
             } else if aiSettings.enabled {
@@ -747,10 +758,12 @@ final class DashboardModel: ObservableObject {
 
     func refreshCalendarConfiguration() async throws {
         guard let calendarService else { return }
+        defer { refreshReleaseReadiness() }
         calendarAccessStatus = await calendarService.authorizationStatus()
         guard calendarAccessStatus == .fullAccess else {
             calendarSources = []
             writableCalendars = []
+            dedicatedCalendarValidationState = nil
             if try await calendarService.configuredIdentity() == nil {
                 calendarMessage = "Full Calendar access is required to configure app-owned events."
             } else {
@@ -764,8 +777,11 @@ final class DashboardModel: ObservableObject {
         if let identity = try await calendarService.configuredIdentity() {
             selectedDedicatedCalendarID = identity.calendarIdentifier
             let state = try await calendarService.validateDedicatedCalendar()
+            dedicatedCalendarValidationState = state
             calendarMessage = calendarMessage(identity: identity, state: state)
         } else {
+            selectedDedicatedCalendarID = nil
+            dedicatedCalendarValidationState = nil
             calendarMessage = "Choose a writable source to create, or explicitly select, a dedicated calendar."
         }
     }
@@ -814,11 +830,32 @@ final class DashboardModel: ObservableObject {
                 return (health, data)
             }.value
             sourceHealth = result.0
+            refreshReleaseReadiness()
+            refreshSourceSetupMessages()
             let data = result.1
             diagnosticPreview = String(decoding: data, as: UTF8.self)
         } catch {
             diagnosticPreview = PrivacyDiagnosticsError.diagnosticExportFailed.description
         }
+    }
+
+    private func refreshSourceSetupMessages() {
+        func message(for source: SourceKind) -> String {
+            guard let health = sourceHealth.first(where: { $0.source == source.rawValue }) else {
+                return "\(source.rawValue) is not configured."
+            }
+            if health.category == .ready {
+                let integration: ReleaseSetupIntegration = source == .canvas ? .canvas : .siweb
+                if setupItems.first(where: { $0.integration == integration })?.isComplete == true {
+                    return "\(source.rawValue) is authorized. Credential fields stay blank for security."
+                }
+                return setupItems.first(where: { $0.integration == integration })?.detail
+                    ?? "\(source.rawValue) is not configured."
+            }
+            return "\(health.message) \(health.recoveryAction)"
+        }
+        canvasSetupMessage = message(for: .canvas)
+        siwebSetupMessage = message(for: .siweb)
     }
 
     func clearLocalData(_ category: LocalDataCategory) async {

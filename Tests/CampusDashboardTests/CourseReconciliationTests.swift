@@ -12,6 +12,39 @@ struct CourseReconciliationTests {
         #expect(CourseIdentityNormalizer.normalizedTitle(canvasName) == "softwareengineering")
         #expect(CourseIdentityNormalizer.normalizedTitle("Software Engineering") == "softwareengineering")
         #expect(CourseIdentityNormalizer.embeddedCode(name: "Networks COMP2001-01", rawCode: "Networks") == "COMP200101")
+        #expect(CourseIdentityNormalizer.normalizedTitle("(26/27-S1) Natural Language Processing COMP4120-411") == "naturallanguageprocessing")
+    }
+
+    @Test("Real 26/27-S1 names yield five safe mappings and one reviewed code conflict")
+    func realTermPrefixCorpus() throws {
+        try withDatabase { database in
+            let rows = [
+                ("Software Engineering", "COMP3001-411", "COMP3001-311"),
+                ("Computer Networks", "COMP3002-411", "COMP3002-311"),
+                ("Database Systems", "COMP3003-411", "COMP3003-311"),
+                ("Artificial Intelligence", "COMP3004-411", "COMP3004-311"),
+                ("Operating Systems", "COMP3005-411", "COMP3005-311"),
+                ("Natural Language Processing", "COMP4120-411", "CSAI3122-311")
+            ]
+            for (title, canvasCode, siwebCode) in rows {
+                _ = try seedPair(
+                    database,
+                    canvasName: "(26/27-S1) \(title) \(canvasCode)", canvasCode: title,
+                    siwebName: title, siwebCode: siwebCode
+                )
+            }
+
+            let service = CourseReconciliationService(database: database)
+            let decisions = try service.reconcile()
+            #expect(decisions.count == 6)
+            #expect(decisions.filter { $0.state == .confirmed }.count == 5)
+            let conflict = try #require(decisions.first { $0.canvasCode == "COMP4120411" })
+            #expect(conflict.siwebCode == "CSAI3122311")
+            #expect(conflict.state == .proposed)
+            #expect(conflict.origin == "proposed_unique_title_code_conflict")
+            #expect(try service.canonicalCourseIDs().count == 10)
+            #expect(try database.scalarInt("SELECT COUNT(*) FROM academic_course_mappings") == 6)
+        }
     }
 
     @Test("Unique compatible code and title auto-map, while ambiguity never guesses")

@@ -7,6 +7,40 @@ struct CalendarIntegrationTests {
     private let localSource = CalendarSourceDescriptor(identifier: "source-local", title: "On My Mac", kind: .local)
     private let cloudSource = CalendarSourceDescriptor(identifier: "source-cloud", title: "iCloud", kind: .iCloud)
 
+    @Test("A validated persisted calendar drives the readiness checklist")
+    @MainActor
+    func validatedCalendarReadiness() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("calendar-readiness-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let database = try SQLiteDatabase(path: directory.appendingPathComponent("test.sqlite3").path)
+        let dedicated = calendar("dedicated", "Campus Dashboard", cloudSource)
+        let store = FakeCalendarEventStore(
+            status: .fullAccess, sources: [cloudSource], calendars: [dedicated]
+        )
+        let calendarService = CampusCalendarService(database: database, store: store)
+        _ = try await calendarService.selectDedicatedCalendar(calendarIdentifier: "dedicated")
+        let suite = "CampusDashboard.CalendarReadiness.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let readiness = ReleaseReadinessService(
+            database: database,
+            canvasConfigurations: UserDefaultsCanvasConfigurationStore(defaults: defaults),
+            canvasSecrets: FakeSecretStore(),
+            siwebConfigurations: UserDefaultsSIwebConfigurationStore(defaults: defaults),
+            siwebSecrets: FakeSecretStore(), defaults: defaults
+        )
+        let model = DashboardModel(
+            snapshot: .empty, calendarService: calendarService, releaseReadiness: readiness
+        )
+
+        try await model.refreshCalendarConfiguration()
+
+        #expect(model.dedicatedCalendarValidationState == .valid)
+        #expect(model.calendarMessage.contains("verified in iCloud"))
+        #expect(model.setupItems.first { $0.integration == .calendar }?.isComplete == true)
+    }
+
     @Test("Permission denial and later revocation remain isolated from configuration")
     func permissionDeniedAndRevoked() async throws {
         try await withDatabase { database in

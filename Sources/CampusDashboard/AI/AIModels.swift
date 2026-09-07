@@ -1,5 +1,12 @@
 import Foundation
 
+enum ProductionAIResultPolicy {
+    static func includes(provider: String, model: String) -> Bool {
+        let identity = "\(provider) \(model)".lowercased()
+        return !identity.contains("fixture") && !identity.contains("synthetic")
+    }
+}
+
 enum AIProviderKind: String, Codable, Sendable {
     case deterministicFake = "deterministic_fake"
     case external

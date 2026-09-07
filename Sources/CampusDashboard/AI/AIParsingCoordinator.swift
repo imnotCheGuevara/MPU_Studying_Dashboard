@@ -76,6 +76,14 @@ final class AIParsingCoordinator: @unchecked Sendable {
 
     func history() throws -> [AIParseRecord] { try persistence.records() }
 
+    func productionPendingConfirmations() throws -> [AIParseRecord] {
+        try persistence.productionRecords(states: [.pending, .undone])
+    }
+
+    func productionHistory() throws -> [AIParseRecord] {
+        try persistence.productionRecords()
+    }
+
     func processPendingCanvasRecords(limit: Int = 100) async -> [AIProcessingOutcome] {
         guard (try? persistence.settings().enabled) == true else { return [] }
         let rows = (try? database.query(

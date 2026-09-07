@@ -32,7 +32,7 @@ enum CourseIdentityNormalizer {
         pattern: #"(?i)^\s*([A-Z][A-Z0-9_-]{1,15})\s*$"#
     )
     private static let termPrefixExpression = try! NSRegularExpression(
-        pattern: #"(?i)^\s*(?:(?:spring|summer|autumn|fall|winter|semester|term)\s*)?20\d{2}(?:\s*[-/]\s*(?:1|2|3|spring|summer|autumn|fall|winter))?\s*[-:|·]*\s*"#
+        pattern: #"(?i)^\s*(?:\(\s*\d{2}\s*/\s*\d{2}\s*-\s*S[123]\s*\)|(?:(?:spring|summer|autumn|fall|winter|semester|term)\s*)?20\d{2}(?:\s*[-/]\s*(?:1|2|3|spring|summer|autumn|fall|winter))?)\s*[-:|·]*\s*"#
     )
 
     static func embeddedCode(name: String, rawCode: String) -> String? {

@@ -42,6 +42,66 @@ struct Stage15RReleaseTests {
         }
     }
 
+    @Test("Stale database authorization cannot replace current Keychain evidence")
+    func staleDatabaseAuthorization() throws {
+        try withReleaseService { service, _, _, _, database in
+            for (id, kind) in [("canvas", "Canvas"), ("siweb", "SIweb")] {
+                try database.execute(
+                    "INSERT INTO source_accounts(id,source_kind,instance_url,display_name,authorization_state,created_at,updated_at) VALUES(?,?,?,'Authorized','authorized',1,2)",
+                    bindings: [.text(id), .text(kind), .text("https://example.invalid/\(id)")]
+                )
+            }
+            let items = service.sourceSetupItems(
+                calendarReady: true, notificationsReady: false, deepSeekReady: false
+            )
+            for integration in [ReleaseSetupIntegration.canvas, .siweb] {
+                let item = try #require(items.first { $0.integration == integration })
+                #expect(!item.isComplete)
+            }
+        }
+    }
+
+    @Test("Production AI views retain but hide fourteen fixture rows")
+    @MainActor
+    func productionAIIsolation() throws {
+        try withReleaseService { service, _, _, _, database in
+            try database.execute(
+                "INSERT INTO source_accounts(id,source_kind,instance_url,display_name,authorization_state,created_at,updated_at) VALUES('canvas','Canvas','https://example.invalid','Canvas','authorized',1,1)"
+            )
+            for index in 0..<15 {
+                let rawID = UUID(), resultID = UUID()
+                try database.execute(
+                    "INSERT INTO raw_source_records(id,source_account_id,object_type,source_object_id,fetch_batch_id,content_hash,payload,fetched_at) VALUES(?,'canvas','learning_task',?,'batch',?,X'7B7D',1)",
+                    bindings: [.text(rawID.uuidString), .text("task-\(index)"), .text("hash-\(index)")]
+                )
+                let fixture = index < 14
+                try database.execute(
+                    "INSERT INTO ai_parse_results(id,raw_source_record_id,input_hash,provider,model,prompt_version,schema_version,confidence,rationale,confirmation_state,created_at,target_object_type,target_object_id,updated_at) VALUES(?,?,?,?,?,'v1','1',1,'result','pending',?,'learning_task',?,?)",
+                    bindings: [
+                        .text(resultID.uuidString), .text(rawID.uuidString), .text("input-\(index)"),
+                        .text(fixture ? "Campus Dashboard deterministic fixture" : "DeepSeek"),
+                        .text(fixture ? "fixture-v1" : "deepseek-chat"), .real(Double(index + 1)),
+                        .text("task-\(index)"), .real(Double(index + 1))
+                    ]
+                )
+            }
+            let coordinator = AIParsingCoordinator(database: database)
+            #expect(try coordinator.productionPendingConfirmations().count == 1)
+            #expect(try coordinator.productionHistory().count == 1)
+            let model = DashboardModel(snapshot: .empty, aiCoordinator: coordinator)
+            model.refreshAIConfiguration()
+            #expect(model.aiConfirmations.count == 1)
+            #expect(try database.scalarInt("SELECT COUNT(*) FROM ai_parse_results") == 15)
+
+            try seedAnalysis(database, id: "10000000-0000-0000-0000-000000000001")
+            try database.execute(
+                "UPDATE academic_signal_analyses SET status='failed',provider='Campus Dashboard deterministic fixture',model='fixture-v1',failure_category='fixture_failure'"
+            )
+            #expect(try service.outcomeMetrics().providerFailures == 0)
+            #expect(try database.scalarInt("SELECT COUNT(*) FROM academic_signal_analyses") == 1)
+        }
+    }
+
     @Test("Every required recovery is actionable and reports unaffected features")
     func recoveryTaxonomy() {
         #expect(RecoveryCategory.allCases.count == 9)
@@ -82,7 +142,11 @@ struct Stage15RReleaseTests {
             "Timeout", "Schema or decoding", "Local AI budget", "Calendar permission",
             "Notification permission", "Other / no actionable result", "Provider fallback",
             "Calendar written", "Ignore", "Undo", "Reset", "Calendar change preview",
-            "Confirm and allow Calendar reconciliation", "Exam or Quiz"
+            "Confirm and allow Calendar reconciliation", "Exam or Quiz",
+            "Canvas is authorized. Credential fields stay blank for security.",
+            "SIweb is authorized. Credential fields stay blank for security.",
+            "Ready. A previous issue was recovered.",
+            "No action needed. Historical recovery is retained locally."
         ]
         for key in keys {
             #expect(Localizer.text(key, language: .simplifiedChinese) != key)

@@ -91,6 +91,7 @@ enum Stage12QAData {
             localStateRepository: SQLiteLocalStateRepository(persistence: repository),
             dataReader: SQLiteDashboardDataReader(database: database),
             aiCoordinator: ai, academicSignalCoordinator: academic,
+            showsSyntheticAIResultsForQA: true,
             now: { now }, timeZone: TimeZone(identifier: "Asia/Macau")!
         )
         model.refreshAIConfiguration()

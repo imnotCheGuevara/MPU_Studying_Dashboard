@@ -25,7 +25,9 @@ final class PrivacyDiagnosticsService: @unchecked Sendable {
             """
             SELECT a.source_kind, a.authorization_state, a.last_successful_sync,
               (SELECT r.error_category FROM sync_runs r WHERE r.source_account_id=a.id
-               ORDER BY r.started_at DESC LIMIT 1) AS latest_error
+               ORDER BY r.started_at DESC LIMIT 1) AS latest_error,
+              (SELECT COALESCE(r.finished_at,r.started_at) FROM sync_runs r WHERE r.source_account_id=a.id
+               ORDER BY r.started_at DESC LIMIT 1) AS latest_attempt_at
             FROM source_accounts a ORDER BY a.source_kind
             """
         )
@@ -119,11 +121,19 @@ final class PrivacyDiagnosticsService: @unchecked Sendable {
               let source = SourceKind(rawValue: rawSource)?.rawValue else { return nil }
         let authorization = row.string("authorization_state") ?? "unknown"
         let error = row.string("latest_error")
+        let lastSuccessfulSync = row.double("last_successful_sync")
+        let latestAttempt = row.double("latest_attempt_at")
+        let recoveredHistoricalIssue: Bool
+        if let lastSuccessfulSync, let latestAttempt {
+            recoveredHistoricalIssue = error != nil && lastSuccessfulSync > latestAttempt
+        } else {
+            recoveredHistoricalIssue = false
+        }
         let category: SourceHealthCategory
         if ["missing", "expired", "revoked", "unauthorized"].contains(authorization) {
             category = .authorizationRequired
         } else {
-            switch error {
+            switch recoveredHistoricalIssue ? nil : error {
             case nil: category = .ready
             case "unauthorized": category = .authorizationRequired
             case "forbidden": category = .permissionDenied
@@ -136,6 +146,8 @@ final class PrivacyDiagnosticsService: @unchecked Sendable {
             }
         }
         let guidance: (String, String) = switch category {
+        case .ready where recoveredHistoricalIssue:
+            ("Ready. A previous issue was recovered.", "No action needed. Historical recovery is retained locally.")
         case .ready: ("Ready.", "No action needed.")
         case .notConfigured: ("Not configured.", "Configure this source before synchronizing.")
         case .authorizationRequired: ("Authorization needs attention.", "Reconnect this source using the secure authorization flow.")
@@ -149,7 +161,7 @@ final class PrivacyDiagnosticsService: @unchecked Sendable {
         }
         return DiagnosticSourceHealth(
             source: source, category: category,
-            lastSuccessfulSync: row.double("last_successful_sync").map(Date.init(timeIntervalSince1970:)),
+            lastSuccessfulSync: lastSuccessfulSync.map(Date.init(timeIntervalSince1970:)),
             message: guidance.0, recoveryAction: guidance.1
         )
     }
