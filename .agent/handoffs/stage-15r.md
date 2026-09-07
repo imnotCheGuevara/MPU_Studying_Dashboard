@@ -36,7 +36,7 @@ No Outlook setup, authorization callback, token lookup, metadata probe, or backg
 - Signature: ad-hoc; `codesign --verify --deep --strict` passed
 - Executable SHA-256: `f242fba9918e3de51c980368b21cf76ef4a8828299c52d24dfd918d231109923`
 - CDHash: `6ad7527a48729b35e4cf3a8d7ca3d25f0109609e`
-- Git release-baseline commit: recorded after the initial commit below
+- Git release-baseline commit: `b4d6f23fe56cf8f66ec8e4755230fd2be5e1bdc3`
 
 ## Aggregate evaluation
 
