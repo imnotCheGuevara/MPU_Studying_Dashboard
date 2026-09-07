@@ -1,0 +1,13 @@
+{
+  "datasetVersion": "stage15-held-out-v1",
+  "fixture": "academic-signals-v1.json",
+  "sha256": "157e18c74c986af872ef211cd2d7f89cbfc4f4e5e5c405be5a4605a2fd431478",
+  "caseCount": 20,
+  "classCounts": {
+    "course_schedule_change": 6,
+    "assignment_deadline": 4,
+    "exam_time": 4,
+    "other": 6
+  },
+  "privacy": "Synthetic labels only; no school, user, credential, URL, or provider-response data."
+}

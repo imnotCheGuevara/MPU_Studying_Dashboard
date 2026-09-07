@@ -1,0 +1,62 @@
+[
+  {
+    "id": 41001,
+    "course_id": 31001,
+    "name": "Undated reading response",
+    "due_at": null,
+    "unlock_at": null,
+    "lock_at": null,
+    "html_url": "https://canvas.invalid/courses/31001/assignments/41001",
+    "submission_types": ["online_text_entry"],
+    "has_overrides": false
+  },
+  {
+    "id": 41002,
+    "course_id": 31001,
+    "name": "Classic quiz checkpoint",
+    "due_at": "2026-09-08T12:00:00Z",
+    "unlock_at": "2026-09-01T00:00:00Z",
+    "lock_at": "2026-09-09T12:00:00Z",
+    "html_url": "https://canvas.invalid/courses/31001/quizzes/51002",
+    "submission_types": ["online_quiz"],
+    "quiz_id": 51002,
+    "has_overrides": false
+  },
+  {
+    "id": 41003,
+    "course_id": 31001,
+    "name": "New Quiz studio check",
+    "due_at": "2026-09-10T12:30:00Z",
+    "unlock_at": null,
+    "lock_at": null,
+    "html_url": "https://canvas.invalid/courses/31001/assignments/41003",
+    "submission_types": ["external_tool"],
+    "is_quiz_assignment": true,
+    "external_tool_tag_attributes": { "url": "https://quiz-lti.invalid/launch" },
+    "has_overrides": false
+  },
+  {
+    "id": 41004,
+    "course_id": 31001,
+    "name": "External lab activity",
+    "due_at": "2026-09-11T09:00:00Z",
+    "unlock_at": null,
+    "lock_at": null,
+    "html_url": "https://canvas.invalid/courses/31001/assignments/41004",
+    "submission_types": ["external_tool"],
+    "is_quiz_assignment": false,
+    "external_tool_tag_attributes": { "url": "https://lab-tool.invalid/launch" },
+    "has_overrides": false
+  },
+  {
+    "id": 41005,
+    "course_id": 31001,
+    "name": "Override date exercise",
+    "due_at": "2026-09-15T14:00:00Z",
+    "unlock_at": "2026-09-02T00:00:00Z",
+    "lock_at": "2026-09-16T14:00:00Z",
+    "html_url": "https://canvas.invalid/courses/31001/assignments/41005",
+    "submission_types": ["online_upload"],
+    "has_overrides": true
+  }
+]

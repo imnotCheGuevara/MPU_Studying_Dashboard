@@ -1,0 +1,26 @@
+{
+  "datasetVersion": "stage15-held-out-v1",
+  "privacy": "Synthetic labels only; no school or user data.",
+  "cases": [
+    {"id":"s01","title":"Class cancellation for Friday","body":"See the revised class notice.","primary":"course_schedule_change"},
+    {"id":"s02","title":"Class cancelled","body":"The Friday class will not meet.","primary":"course_schedule_change"},
+    {"id":"s03","title":"停课通知","body":"本周五停课。","primary":"course_schedule_change"},
+    {"id":"s04","title":"Room change","body":"Class moved to B204.","primary":"course_schedule_change"},
+    {"id":"s05","title":"Make-up class","body":"A make-up class is arranged.","primary":"course_schedule_change"},
+    {"id":"s06","title":"Class moved","body":"Review the new room.","primary":"course_schedule_change"},
+    {"id":"a01","title":"Assignment due","body":"Submit by Friday.","primary":"assignment_deadline"},
+    {"id":"a02","title":"Homework due","body":"Review the submission instructions.","primary":"assignment_deadline"},
+    {"id":"a03","title":"作业截止","body":"请于周五提交。","primary":"assignment_deadline"},
+    {"id":"a04","title":"Deadline","body":"The deadline is Sunday.","primary":"assignment_deadline"},
+    {"id":"e01","title":"Exam","body":"Review the exam arrangement.","primary":"exam_time"},
+    {"id":"e02","title":"Quiz","body":"The quiz begins at 09:00.","primary":"exam_time"},
+    {"id":"e03","title":"期中考试","body":"考试安排如下。","primary":"exam_time"},
+    {"id":"e04","title":"小测","body":"小测将在下周举行。","primary":"exam_time"},
+    {"id":"o01","title":"Welcome","body":"Welcome to the course.","primary":"other"},
+    {"id":"o02","title":"Campus event","body":"You may cancel your registration.","primary":"other"},
+    {"id":"o03","title":"Reading","body":"The next chapter is available.","primary":"other"},
+    {"id":"o04","title":"Office hours","body":"Office hours remain unchanged.","primary":"other"},
+    {"id":"o05","title":"Greeting","body":"Have a good term.","primary":"other"},
+    {"id":"o06","title":"社团消息","body":"欢迎参加校园活动。","primary":"other"}
+  ]
+}

@@ -1,0 +1,3 @@
+model_auto_compact_token_limit = 96000
+model_auto_compact_token_limit_scope = "total"
+tool_output_token_limit = 6000
