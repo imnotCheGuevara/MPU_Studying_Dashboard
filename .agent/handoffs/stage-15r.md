@@ -4,7 +4,7 @@ Status: `PARTIAL`
 
 ## Outcome
 
-The release-candidate implementation, including the 2026-09-07 Canvas/SIweb reconciliation, acceptance-blocker, automatic-cadence, and source-localization repairs, is complete and the automated, privacy, packaging, and signature gates pass. The remaining acceptance gap is the main conversation's real bilingual UI, restored SIweb authorization, automatic-cadence observation, and existing-dedicated-calendar walkthrough. This handoff therefore remains `PARTIAL` and does not start the seven-day trial.
+The release-candidate implementation, including the 2026-09-07 Canvas/SIweb reconciliation, acceptance-blocker, automatic-cadence, source-localization, and SIweb post-authorization health repairs, is complete and the automated, privacy, packaging, and signature gates pass. The current strict SIweb contract also passes an aggregate-only real read from the frozen candidate. The remaining acceptance gap is the main conversation's post-repair Settings/UI verification, real bilingual UI, automatic-cadence observation, and existing-dedicated-calendar walkthrough. This handoff therefore remains `PARTIAL` and does not start the seven-day trial.
 
 No Outlook setup, authorization callback, token lookup, metadata probe, or background traffic is reachable from the production app in this release. The older Stage 13 implementation and its regression tests remain in the repository as dormant historical code.
 
@@ -19,7 +19,7 @@ No Outlook setup, authorization callback, token lookup, metadata probe, or backg
 
 ## Verification performed
 
-- `./scripts/test.sh` — PASS, 234 tests in 20 suites.
+- `./scripts/test.sh` — PASS, 236 tests in 20 suites.
 - `./scripts/build-app.sh` — PASS, production app rebuilt and ad-hoc signed.
 - `./scripts/verify-app.sh` — PASS, macOS application launch and Keychain smoke test.
 - `codesign --verify --deep --strict "dist/Campus Dashboard.app"` — PASS.
@@ -34,12 +34,13 @@ No Outlook setup, authorization callback, token lookup, metadata probe, or backg
 - Bundle identifier: `com.campusdashboard.desktop`
 - Version/build: `0.3.0 (4)`
 - Signature: ad-hoc; `codesign --verify --deep --strict` passed
-- Executable SHA-256: `5b5c896a6d897033cc0ae749ae0ce3d0781c893a8ab230f3706c3188ef42fa97`
-- CDHash: `3235444dd3e1011e31d8e48a1be4ef62a868f004`
+- Executable SHA-256: `60402081d9ed538d24a7d682e480216d5d527ca4fe8fa088f14c91b880375c89`
+- CDHash: `e6a68ab28caf0124e4884cca25f0ba167f95c41f`
 - Reconciliation implementation commit: `5df93d7fe544f8baad402e7b77c4b57622029af8` (`Repair Canvas SIweb course reconciliation`).
 - Acceptance-blocker implementation commit: `c4a345ad561749629cc9230bd2b299ade21cb872` (`Repair Stage 15R acceptance blockers`).
 - Automatic-cadence and source-localization implementation commit: `3d6cbacd22f1e777ac7508968f94a760d6b63a30` (`Fix automatic sync cadence and source localization`).
 - Calendar recovery-localization implementation commit: `c6b04b46328326d4e5931678f46aeab60789fab8` (`Localize Calendar recovery summary`).
+- SIweb post-authorization health implementation commit: `7a6c8d5` (`Repair SIweb authorization health refresh`).
 - The handoff-only evidence commit follows this implementation commit; the final handoff commit SHA is reported to the main conversation after creation.
 
 ## 2026-09-07 reconciliation repair
@@ -89,6 +90,17 @@ Repair limitations:
 - Current SIweb `source_changed` was not treated as a parser defect because no private response was inspected and the connector contract was not weakened. It remains a user reauthorization/retest gate; if the exact authorized timetable page still fails afterward, investigate only with privacy-safe structural evidence.
 - Final gates: `./scripts/test.sh` PASS (233 tests, 20 suites); production build PASS; app launch/isolated Keychain smoke PASS; strict ad-hoc signature PASS; diff hygiene, credential/private-artifact, and prohibited-network/Outlook scans PASS. The only new URL is `https://example.invalid` in a database-backed localization test. No real service, existing Keychain credential, Outlook path, or Apple Calendar event was accessed or changed.
 
+## 2026-09-07 SIweb post-authorization health repair
+
+- Root cause was stale persisted health, not a current parser mismatch. The frozen signed candidate's existing strict read-only SIweb smoke path successfully parsed 92 meeting instances with 0 cancellations and emitted no source content. Aggregate-only local database metadata showed that Settings was still reading an older `source_changed` sync result because the in-app authorization completion saved the eligible session in Keychain and refreshed checklist state, but never ran or persisted a new SIweb synchronization.
+- Successful in-app SIweb authorization now launches one awaited SIweb-scoped manual synchronization, reloads persisted dashboard/diagnostic/background state, and then refreshes release readiness. Cancellation, missing eligible cookies, and Keychain-save failures do not start a synchronization.
+- The scoped production runner configures and reads SIweb only. It does not refresh Canvas and cannot invoke the whole-run AI coordinators or Calendar outbox processor. Normal local reconciliation and notification-state refresh remain available after the SIweb commit. The existing exact-host, read-only GET, login-refusal, redirect-blocking, and strict parser contracts were not relaxed.
+- Parser failures now include a bounded allowlisted structural fingerprint: only login-marker booleans, synthetic-contract marker booleans, table/header match counts, positional header masks, and bounded row-cell counts. It contains no cell text, URLs, headers, cookies, identifiers, or response excerpts. The local smoke tool may print this safe fingerprint on failure; persisted sync error summaries remain category-only.
+- Added regressions proving that a successful authorization invokes only the SIweb-scoped runner, replaces stale `source_changed` health with `ready`, never invokes the whole-source runner, and cannot leak private marker/cell values through the structural diagnostic.
+- Focused gates passed: 9 Stage 10 dashboard tests and 23 SIweb connector tests. Final `./scripts/test.sh` passed 236 tests in 20 suites. Production build, app launch/isolated Keychain smoke, strict code-sign verification, staged diff hygiene, credential/private-artifact scans, and changed-network/Outlook scans passed.
+- Frozen candidate: Campus Dashboard `0.3.0 (4)`, ad-hoc signed, executable SHA-256 `60402081d9ed538d24a7d682e480216d5d527ca4fe8fa088f14c91b880375c89`, CDHash `e6a68ab28caf0124e4884cca25f0ba167f95c41f`. The aggregate-only real SIweb read was repeated from this exact signed candidate and passed with 92 meetings and 0 cancellations.
+- This delegated repair did not inspect or record response content, expose a Keychain value, mutate either school source, enable Outlook, or perform an Apple Calendar write. Stage 15R remains `PARTIAL` until the main conversation verifies the repaired Settings flow and completes the other mandatory real UI/cadence/Calendar gates.
+
 ## Aggregate evaluation
 
 The final narrow Calendar localization repair maps the recovery-center detail `Calendar access is not available.` to Simplified Chinese while preserving the English source key. Its focused regression also verifies the already-localized Calendar unaffected-features and recovery-action copy in the same generated recovery item. The focused test passed, followed by the complete 234-test/20-suite gate, production build, launch/isolated Keychain smoke, strict signature verification, diff hygiene, credential/private-artifact scan, and changed-network/Outlook scan. No network path, permission behavior, credential handling, source data, or Calendar mutation changed.
@@ -101,13 +113,13 @@ The pre-repair local app database contained mixed historical/development activit
 
 - Final-candidate interactive bilingual/accessibility walkthrough of the new reconciliation controls: not performed in this delegated repair. Automated bilingual and accessibility contracts pass, but they are not substituted for the required real UI check.
 - Existing-dedicated-calendar mapped schedule-change lifecycle: not performed. The repair deliberately made no EventKit change; the main conversation must preview and explicitly confirm any real create/update/cancel action with the user.
-- Final-candidate aggregate-only Canvas/SIweb/notification/optional-DeepSeek recheck: not repeated by this repair. Any user-only Keychain, SIweb, Calendar, notification, MFA, or CAPTCHA prompt must remain with the user.
+- Final-candidate aggregate-only Canvas/notification/optional-DeepSeek recheck: not repeated by this repair. The SIweb aggregate-only strict read passed, but its repaired Settings presentation still needs the main conversation's UI verification. Any user-only Keychain, SIweb, Calendar, notification, MFA, or CAPTCHA prompt must remain with the user.
 - Re-enable automatic sync after personally reauthorizing SIweb, then observe at least one full configured interval. Confirm a persistent per-source failure does not produce another approximately 35-second loop and that Canvas remains independently usable.
 - Seven-day observed outcome review: not yet available and not fabricated.
 
 ## Exact user actions required
 
-1. In the main conversation, relaunch the rebuilt `Campus Dashboard 0.3.0 (4)` after satisfying any user-only Keychain/system prompt. Reauthorize SIweb in the app and retry the exact authorized timetable page without sharing credentials, cookies, or private page content. Verify that the real six Canvas and six SIweb courses resolve to five confirmed mappings plus the one proposed Natural Language Processing code conflict, and that the conflict is not auto-mapped.
+1. In the main conversation, relaunch the frozen `Campus Dashboard 0.3.0 (4)` candidate and complete the SIweb authorization flow once more to exercise the repaired post-authorization synchronization. Satisfy any user-only Keychain/system/institutional prompt personally and do not share credentials, cookies, or private page content. Confirm that Settings leaves `source_changed`, reports SIweb ready/authorized, and the real six Canvas and six SIweb courses resolve to five confirmed mappings plus the one proposed Natural Language Processing code conflict without auto-mapping that conflict.
 2. Confirm that the production AI confirmation queue does not show the 14 deterministic fixture rows, while no stored history is deleted. Inspect Canvas, SIweb, and Calendar status in both English and Simplified Chinese: healthy authorized sources must not say “not configured,” secret inputs must remain empty, and a valid selected iCloud dedicated calendar must be complete in both the Calendar section and checklist.
 3. Complete any macOS Keychain, institutional SIweb/MFA/CAPTCHA, notification, or Calendar permission prompt personally. Do not send a password, token, Cookie, key, or private-source screenshot in chat, and grant Calendar access only for the dedicated Campus Dashboard calendar.
 4. Re-enable automatic sync and observe that no short retry loop recurs after a persistent per-source failure; Canvas must remain independently usable and the next normal automatic attempt must respect the hourly target. With the proposed conflict, verify zero automatic mapping/Calendar writes; with one explicitly accepted unique mapping, preview and confirm the existing-dedicated-calendar schedule-change lifecycle. Only the main conversation may then accept Stage 15R or resume the seven-day trial.
@@ -124,9 +136,13 @@ The pre-repair local app database contained mixed historical/development activit
 - `Sources/CampusDashboard/App/Localization.swift`
 - `Sources/CampusDashboard/App/ReleaseReadiness.swift`
 - `Sources/CampusDashboard/App/Stage12QAData.swift`
+- `Sources/CampusDashboard/Background/BackgroundModels.swift`
 - `Sources/CampusDashboard/Background/BackgroundSyncScheduler.swift`
 - `Sources/CampusDashboard/Calendar/CampusCalendarService.swift`
 - `Sources/CampusDashboard/Connectors/Canvas/CanvasLocalTool.swift`
+- `Sources/CampusDashboard/Connectors/SIweb/SIwebConnector.swift`
+- `Sources/CampusDashboard/Connectors/SIweb/SIwebHTMLParser.swift`
+- `Sources/CampusDashboard/Connectors/SIweb/SIwebLocalTool.swift`
 - `Sources/CampusDashboard/Features/Confirmations/ConfirmationQueueView.swift`
 - `Sources/CampusDashboard/Features/Settings/SIwebAuthorizationView.swift`
 - `Sources/CampusDashboard/Features/Settings/SettingsView.swift`
@@ -138,6 +154,8 @@ The pre-repair local app database contained mixed historical/development activit
 - `Tests/CampusDashboardTests/PersistenceTests.swift`
 - `Tests/CampusDashboardTests/PrivacyDiagnosticsTests.swift`
 - `Tests/CampusDashboardTests/Stage15RReleaseTests.swift`
+- `Tests/CampusDashboardTests/SIwebConnectorTests.swift`
+- `Tests/CampusDashboardTests/Stage10DashboardDataTests.swift`
 - `docs/stage-15r-evaluation.md`
 - `.agent/handoffs/stage-15r.md`
 
@@ -159,4 +177,4 @@ Additional files changed by the reconciliation repair:
 
 ## Proposed main-thread current-context update
 
-Keep Stage 15R `PARTIAL` and do not authorize a later stage. Record that the reconciliation, acceptance-blocker, cadence, and localization implementations, 234-test automation, packaging, signature, scans, and Outlook dormancy pass. The main conversation should perform only the remaining SIweb reauthorization/retest, automatic-cadence observation, real bilingual UI, and existing-dedicated-calendar checks above, then decide whether to accept Stage 15R and resume Stage 10.
+Keep Stage 15R `PARTIAL` and do not authorize a later stage. Record that the reconciliation, acceptance-blocker, cadence, localization, and SIweb post-authorization health implementations, 236-test automation, packaging, signature, scans, aggregate-only strict SIweb read, and Outlook dormancy pass. The main conversation should perform only the remaining repaired Settings verification, automatic-cadence observation, real bilingual UI, and existing-dedicated-calendar checks above, then decide whether to accept Stage 15R and resume Stage 10.
