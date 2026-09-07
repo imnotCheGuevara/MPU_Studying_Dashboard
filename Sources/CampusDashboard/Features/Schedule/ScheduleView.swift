@@ -214,15 +214,16 @@ struct ScheduleView: View {
         case .officialDeadline: "Official deadline"
         case .confirmedInferredDeadline: "Confirmed inferred deadline"
         case .confirmedExam: "Confirmed exam"
+        case .confirmedScheduleChange: "Confirmed schedule change"
         }
     }
 
     private func eventColor(_ kind: CalendarEventKind) -> Color {
-        switch kind { case .courseMeeting: .blue; case .officialDeadline: .red; case .confirmedInferredDeadline: .purple; case .confirmedExam: .orange }
+        switch kind { case .courseMeeting: .blue; case .officialDeadline: .red; case .confirmedInferredDeadline: .purple; case .confirmedExam: .orange; case .confirmedScheduleChange: .teal }
     }
 
     private func eventSymbol(_ kind: CalendarEventKind) -> String {
-        switch kind { case .courseMeeting: "person.2"; case .officialDeadline: "exclamationmark.circle.fill"; case .confirmedInferredDeadline: "checkmark.sparkles"; case .confirmedExam: "graduationcap.fill" }
+        switch kind { case .courseMeeting: "person.2"; case .officialDeadline: "exclamationmark.circle.fill"; case .confirmedInferredDeadline: "checkmark.sparkles"; case .confirmedExam: "graduationcap.fill"; case .confirmedScheduleChange: "arrow.triangle.2.circlepath" }
     }
 }
 
@@ -263,9 +264,9 @@ struct EventDetailSheet: View {
     }
 
     private var kindLabel: String {
-        switch event.kind { case .courseMeeting: "Course meeting"; case .officialDeadline: "Official deadline"; case .confirmedInferredDeadline: "Confirmed inferred deadline"; case .confirmedExam: "Confirmed exam" }
+        switch event.kind { case .courseMeeting: "Course meeting"; case .officialDeadline: "Official deadline"; case .confirmedInferredDeadline: "Confirmed inferred deadline"; case .confirmedExam: "Confirmed exam"; case .confirmedScheduleChange: "Confirmed schedule change" }
     }
     private var color: Color {
-        switch event.kind { case .courseMeeting: .blue; case .officialDeadline: .red; case .confirmedInferredDeadline: .purple; case .confirmedExam: .orange }
+        switch event.kind { case .courseMeeting: .blue; case .officialDeadline: .red; case .confirmedInferredDeadline: .purple; case .confirmedExam: .orange; case .confirmedScheduleChange: .teal }
     }
 }

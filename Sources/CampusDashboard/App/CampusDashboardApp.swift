@@ -146,6 +146,7 @@ struct CampusDashboardApp: App {
             backgroundScheduler: dependencies.backgroundScheduler,
             aiCoordinator: dependencies.aiCoordinator,
             academicSignalCoordinator: dependencies.academicSignalCoordinator,
+            courseReconciliation: dependencies.courseReconciliation,
             outlookAuthorization: dependencies.outlookAuthorization,
             privacyDiagnostics: dependencies.privacyDiagnostics,
             releaseReadiness: dependencies.releaseReadiness

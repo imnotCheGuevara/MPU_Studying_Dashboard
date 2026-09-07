@@ -248,7 +248,7 @@ final class AcademicSignalPersistence: @unchecked Sendable {
             localCourseIDs = [courseID.uuidString]
         } else {
             localCourseIDs = try database.query(
-                "SELECT siweb_course_id FROM academic_course_mappings WHERE canvas_course_id=? AND is_active=1",
+                "SELECT siweb_course_id FROM academic_course_mappings WHERE canvas_course_id=? AND is_active=1 AND decision_state='confirmed'",
                 bindings: [.text(courseID.uuidString)]
             ).compactMap { $0.string("siweb_course_id") }
         }

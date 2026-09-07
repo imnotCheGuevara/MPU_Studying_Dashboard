@@ -5,6 +5,14 @@ enum SourceKind: String, CaseIterable, Identifiable, Codable, Sendable {
     case siweb = "SIweb"
 
     var id: Self { self }
+
+    init?(databaseValue: String) {
+        switch databaseValue.lowercased() {
+        case "canvas": self = .canvas
+        case "siweb": self = .siweb
+        default: return nil
+        }
+    }
 }
 
 enum HealthLevel: String, Sendable {

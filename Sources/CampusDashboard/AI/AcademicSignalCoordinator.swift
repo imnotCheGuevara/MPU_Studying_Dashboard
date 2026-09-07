@@ -282,28 +282,19 @@ final class AcademicSignalCoordinator: @unchecked Sendable {
             "SELECT c.id,c.code,c.name FROM announcements a JOIN courses c ON c.id=a.course_id WHERE a.id=?",
             bindings: [.text(announcementID.uuidString)]
         ).first, let canvasID = canvas.string("id"), let code = canvas.string("code") else { return input }
-        var mappedIDs = try database.query(
-            "SELECT siweb_course_id FROM academic_course_mappings WHERE canvas_course_id=? AND is_active=1",
+        let reconciliationTime = clock.now
+        _ = try CourseReconciliationService(database: database, now: { reconciliationTime }).reconcile()
+        let localCode = CourseIdentityNormalizer.embeddedCode(
+            name: canvas.string("name") ?? "", rawCode: code
+        ) ?? code
+        let mappedIDs = try database.query(
+            "SELECT siweb_course_id FROM academic_course_mappings WHERE canvas_course_id=? AND is_active=1 AND decision_state='confirmed'",
             bindings: [.text(canvasID)]
         ).compactMap { $0.string("siweb_course_id") }
-        if mappedIDs.isEmpty {
-            let normalized = Self.normalizedCourseCode(code)
-            let matches = try database.query(
-                "SELECT c.id,c.code FROM courses c JOIN source_accounts s ON s.id=c.source_account_id WHERE s.source_kind='SIweb' AND c.source_state='active'"
-            ).filter { Self.normalizedCourseCode($0.string("code") ?? "") == normalized }
-            if matches.count == 1, let siwebID = matches[0].string("id") {
-                let now = clock.now.timeIntervalSince1970
-                try database.execute(
-                    "INSERT OR IGNORE INTO academic_course_mappings(id,canvas_course_id,siweb_course_id,section_key,origin,is_active,created_at,updated_at) VALUES(?,?,?,?, 'exact_course_code',1,?,?)",
-                    bindings: [.text(ids.next().uuidString), .text(canvasID), .text(siwebID), .text(code), .real(now), .real(now)]
-                )
-                mappedIDs = [siwebID]
-            }
-        }
         guard mappedIDs.count == 1 else {
             return AcademicSignalInput(announcementID: input.announcementID, title: input.title,
                 visibleTextExcerpt: input.visibleTextExcerpt, courseName: input.courseName,
-                courseCode: code, localSection: nil, meetingCandidates: [], locale: input.locale)
+                courseCode: localCode, localSection: nil, meetingCandidates: [], locale: input.locale)
         }
         let rows = try database.query(
             "SELECT m.*,c.code AS course_code FROM course_meetings m JOIN courses c ON c.id=m.course_id WHERE m.course_id=? AND m.source_state='active' ORDER BY m.starts_at LIMIT 24",
@@ -313,14 +304,14 @@ final class AcademicSignalCoordinator: @unchecked Sendable {
             guard let id = row.string("id").flatMap(UUID.init(uuidString:)),
                   let start = row.double("starts_at").map(Date.init(timeIntervalSince1970:)),
                   let end = row.double("ends_at").map(Date.init(timeIntervalSince1970:)) else { return nil }
-            return .init(meetingID: id, courseCode: row.string("course_code") ?? code,
-                         section: code, startsAt: start, endsAt: end,
+            return .init(meetingID: id, courseCode: row.string("course_code") ?? localCode,
+                         section: localCode, startsAt: start, endsAt: end,
                          timeZoneIdentifier: row.string("original_time_zone") ?? "Asia/Macau",
                          location: row.string("location") ?? "")
         }
         return AcademicSignalInput(announcementID: input.announcementID, title: input.title,
             visibleTextExcerpt: input.visibleTextExcerpt, courseName: input.courseName ?? canvas.string("name"),
-            courseCode: code, localSection: code, meetingCandidates: candidates, locale: input.locale)
+            courseCode: localCode, localSection: localCode, meetingCandidates: candidates, locale: input.locale)
     }
 
     private func resolvedMeeting(for signal: AcademicSignalSuggestion, input: AcademicSignalInput) -> UUID? {
@@ -329,10 +320,6 @@ final class AcademicSignalCoordinator: @unchecked Sendable {
         guard let date = signal.inferredDate else { return nil }
         let matches = input.meetingCandidates.filter { abs($0.startsAt.timeIntervalSince(date)) <= 43_200 }
         return matches.count == 1 ? matches[0].meetingID : nil
-    }
-
-    private static func normalizedCourseCode(_ value: String) -> String {
-        value.uppercased().unicodeScalars.filter(CharacterSet.alphanumerics.contains).map(String.init).joined()
     }
 
     private func personalizedResponse(

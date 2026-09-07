@@ -13,6 +13,7 @@ enum CalendarEventKind: String, CaseIterable, Identifiable, Sendable {
     case officialDeadline
     case confirmedInferredDeadline
     case confirmedExam
+    case confirmedScheduleChange
 
     var id: Self { self }
 }
@@ -106,11 +107,19 @@ enum CalendarPresentation {
                   let announcement = snapshot.announcements.first(where: { $0.id == signal.announcementID })
             else { return nil }
             let allDay = signal.adoptedIsAllDay ?? signal.isAllDay
+            let category = signal.adoptedCategory ?? signal.category
+            let kind: CalendarEventKind
+            switch category {
+            case .examTime: kind = .confirmedExam
+            case .assignmentDeadline: kind = .confirmedInferredDeadline
+            case .courseScheduleChange: kind = .confirmedScheduleChange
+            case .other: return nil
+            }
             return CalendarEvent(
                 id: "academic-signal:\(signal.id.uuidString)", objectID: signal.id,
                 courseID: announcement.courseID, title: signal.keyRequirement,
                 start: date, end: date.addingTimeInterval(allDay ? 86_400 : 1_800),
-                isAllDay: allDay, kind: (signal.adoptedCategory ?? signal.category) == .examTime ? .confirmedExam : .confirmedInferredDeadline,
+                isAllDay: allDay, kind: kind,
                 source: .canvas, location: "", isCancelled: false,
                 sourceURL: announcement.sourceURL
             )

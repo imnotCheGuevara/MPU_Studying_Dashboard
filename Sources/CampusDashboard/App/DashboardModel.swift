@@ -103,6 +103,7 @@ final class DashboardModel: ObservableObject {
     @Published var calendarChangePreview: CalendarChangePreview?
     @Published private(set) var calendarWrittenSignalIDs: Set<UUID> = []
     @Published private(set) var ignoredAcademicAnalysisIDs: Set<UUID> = []
+    @Published private(set) var courseMappingDecisions: [CourseMappingDecision] = []
 
     private let localStateRepository: any LocalStateRepository
     private let dataReader: (any DashboardDataReading)?
@@ -111,6 +112,7 @@ final class DashboardModel: ObservableObject {
     private let backgroundScheduler: BackgroundSyncScheduler?
     private let aiCoordinator: AIParsingCoordinator?
     private let academicSignalCoordinator: AcademicSignalCoordinator?
+    private let courseReconciliation: CourseReconciliationService?
     private let outlookAuthorization: OutlookAuthorizationService?
     private let outlookIsPreviewOverride: Bool
     private let privacyDiagnostics: PrivacyDiagnosticsService?
@@ -131,6 +133,7 @@ final class DashboardModel: ObservableObject {
         backgroundScheduler: BackgroundSyncScheduler? = nil,
         aiCoordinator: AIParsingCoordinator? = nil,
         academicSignalCoordinator: AcademicSignalCoordinator? = nil,
+        courseReconciliation: CourseReconciliationService? = nil,
         outlookAuthorization: OutlookAuthorizationService? = nil,
         outlookPreviewStatus: OutlookAuthorizationStatus? = nil,
         privacyDiagnostics: PrivacyDiagnosticsService? = nil,
@@ -148,6 +151,7 @@ final class DashboardModel: ObservableObject {
         self.backgroundScheduler = backgroundScheduler
         self.aiCoordinator = aiCoordinator
         self.academicSignalCoordinator = academicSignalCoordinator
+        self.courseReconciliation = courseReconciliation
         self.outlookAuthorization = outlookAuthorization
         outlookIsPreviewOverride = outlookPreviewStatus != nil
         self.privacyDiagnostics = privacyDiagnostics
@@ -168,6 +172,7 @@ final class DashboardModel: ObservableObject {
         guard !runtimeStarted else { return }
         runtimeStarted = true
         await reloadDashboardData()
+        refreshCourseMappings()
         await refreshNotificationConfiguration()
         try? await notificationService?.reconcileReminders()
         await refreshBackgroundConfiguration()
@@ -1042,10 +1047,42 @@ final class DashboardModel: ObservableObject {
         do {
             let loaded = try await Task.detached { try dataReader.loadSnapshot() }.value
             snapshot = loaded
+            refreshCourseMappings()
             persistenceError = nil
         } catch {
             snapshot = .empty
             persistenceError = "Dashboard data is temporarily unavailable. Existing source data was not replaced."
+        }
+    }
+
+    func refreshCourseMappings() {
+        guard let courseReconciliation else { return }
+        do {
+            courseMappingDecisions = try courseReconciliation.reconcile()
+            persistenceError = nil
+        } catch {
+            persistenceError = "Course reconciliation is temporarily unavailable. Source courses were not changed."
+        }
+    }
+
+    func mapCourses(_ id: UUID) { updateCourseMapping(id, action: { try $0.map(id) }) }
+    func keepCoursesSeparate(_ id: UUID) { updateCourseMapping(id, action: { try $0.keepSeparate(id) }) }
+    func undoCourseMapping(_ id: UUID) { updateCourseMapping(id, action: { try $0.undo(id) }) }
+    func resetCourseMapping(_ id: UUID) { updateCourseMapping(id, action: { try $0.reset(id) }) }
+
+    private func updateCourseMapping(
+        _ id: UUID, action: (CourseReconciliationService) throws -> Void
+    ) {
+        guard let courseReconciliation else { return }
+        do {
+            try action(courseReconciliation)
+            courseMappingDecisions = try courseReconciliation.decisions()
+            Task {
+                await reloadDashboardData()
+                await refreshNotificationConfiguration()
+            }
+        } catch {
+            persistenceError = "The local course decision could not be saved. Source courses were not changed."
         }
     }
 

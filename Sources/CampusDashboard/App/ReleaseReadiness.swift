@@ -203,28 +203,89 @@ final class ReleaseReadinessService: @unchecked Sendable {
 
     func outcomeMetrics() throws -> OutcomeMetricSnapshot {
         let sync = try database.query(
-            "SELECT COUNT(*) total,SUM(CASE WHEN persistence_state='committed' THEN 1 ELSE 0 END) ok,AVG(CASE WHEN finished_at IS NOT NULL THEN finished_at-started_at END) latency FROM sync_runs"
+            "SELECT COUNT(*) total,SUM(CASE WHEN r.persistence_state='committed' THEN 1 ELSE 0 END) ok,AVG(CASE WHEN r.finished_at IS NOT NULL THEN r.finished_at-r.started_at END) latency FROM sync_runs r JOIN source_accounts sa ON sa.id=r.source_account_id WHERE LOWER(sa.source_kind) IN ('canvas','siweb')"
         ).first
         let corrections = try database.scalarInt(
-            "SELECT COUNT(*) FROM academic_signal_audit WHERE action IN ('correct','correct_analysis')"
+            "SELECT COUNT(*) FROM academic_signal_audit a JOIN academic_signals s ON s.id=a.signal_id JOIN source_accounts sa ON sa.id=s.source_account_id WHERE a.action IN ('correct','correct_analysis') AND LOWER(sa.source_kind) IN ('canvas','siweb')"
         )
         let failures = try database.scalarInt(
-            "SELECT COUNT(*) FROM academic_signal_analyses WHERE status='failed'"
+            "SELECT COUNT(*) FROM academic_signal_analyses a JOIN source_accounts sa ON sa.id=a.source_account_id WHERE a.status='failed' AND LOWER(sa.source_kind) IN ('canvas','siweb')"
         )
         let recovered = try database.scalarInt(
-            "SELECT COUNT(DISTINCT f.announcement_id) FROM academic_signal_analyses f JOIN academic_signal_analyses s ON s.announcement_id=f.announcement_id AND s.created_at>f.created_at WHERE f.status='failed' AND s.status IN ('analyzed','deterministic_only')"
+            "SELECT COUNT(DISTINCT f.announcement_id) FROM academic_signal_analyses f JOIN academic_signal_analyses s ON s.announcement_id=f.announcement_id AND s.created_at>f.created_at JOIN source_accounts sa ON sa.id=f.source_account_id WHERE f.status='failed' AND s.status IN ('analyzed','deterministic_only') AND LOWER(sa.source_kind) IN ('canvas','siweb')"
         )
         let criticalMisses = try database.scalarInt(
-            "SELECT COUNT(*) FROM academic_signal_audit a JOIN academic_signals s ON s.id=a.signal_id JOIN academic_signal_analyses n ON n.id=s.analysis_id WHERE a.action='correct_analysis' AND n.primary_category='other' AND s.category IN ('course_schedule_change','assignment_deadline','exam_time')"
+            "SELECT COUNT(*) FROM academic_signal_audit a JOIN academic_signals s ON s.id=a.signal_id JOIN academic_signal_analyses n ON n.id=s.analysis_id JOIN source_accounts sa ON sa.id=s.source_account_id WHERE a.action='correct_analysis' AND n.primary_category='other' AND s.category IN ('course_schedule_change','assignment_deadline','exam_time') AND LOWER(sa.source_kind) IN ('canvas','siweb')"
         )
         let duplicateBindings = try database.scalarInt(
-            "SELECT COALESCE(SUM(n-1),0) FROM (SELECT COUNT(*) n FROM calendar_bindings WHERE sync_state!='removed' GROUP BY object_type,object_id HAVING COUNT(*)>1)"
+            """
+            SELECT COALESCE(SUM(n-1),0) FROM (
+              SELECT COUNT(*) n FROM calendar_bindings b
+              WHERE b.sync_state!='removed' AND (
+                (b.object_type='learning_task' AND EXISTS (
+                  SELECT 1 FROM learning_tasks t JOIN source_accounts sa ON sa.id=t.source_account_id
+                  WHERE t.id=b.object_id AND LOWER(sa.source_kind) IN ('canvas','siweb')
+                )) OR
+                (b.object_type='course_meeting' AND EXISTS (
+                  SELECT 1 FROM course_meetings cm JOIN courses c ON c.id=cm.course_id
+                  JOIN source_accounts sa ON sa.id=c.source_account_id
+                  WHERE cm.id=b.object_id AND LOWER(sa.source_kind) IN ('canvas','siweb')
+                )) OR
+                (b.object_type='academic_signal' AND EXISTS (
+                  SELECT 1 FROM academic_signals s JOIN source_accounts sa ON sa.id=s.source_account_id
+                  WHERE s.id=b.object_id AND LOWER(sa.source_kind) IN ('canvas','siweb')
+                ))
+              ) GROUP BY b.object_type,b.object_id HAVING COUNT(*)>1
+            )
+            """
         )
         let unsafeBindings = try database.scalarInt(
-            "SELECT COUNT(*) FROM calendar_bindings b LEFT JOIN managed_calendar_identity m ON b.calendar_identifier=m.calendar_identifier AND b.calendar_source_identifier=m.source_identifier WHERE b.sync_state!='removed' AND m.internal_id IS NULL"
+            """
+            SELECT COUNT(*) FROM calendar_bindings b
+            LEFT JOIN managed_calendar_identity m
+              ON b.calendar_identifier=m.calendar_identifier
+              AND b.calendar_source_identifier=m.source_identifier
+            WHERE b.sync_state!='removed' AND m.internal_id IS NULL AND (
+              (b.object_type='learning_task' AND EXISTS (
+                SELECT 1 FROM learning_tasks t JOIN source_accounts sa ON sa.id=t.source_account_id
+                WHERE t.id=b.object_id AND LOWER(sa.source_kind) IN ('canvas','siweb')
+              )) OR
+              (b.object_type='course_meeting' AND EXISTS (
+                SELECT 1 FROM course_meetings cm JOIN courses c ON c.id=cm.course_id
+                JOIN source_accounts sa ON sa.id=c.source_account_id
+                WHERE cm.id=b.object_id AND LOWER(sa.source_kind) IN ('canvas','siweb')
+              )) OR
+              (b.object_type='academic_signal' AND EXISTS (
+                SELECT 1 FROM academic_signals s JOIN source_accounts sa ON sa.id=s.source_account_id
+                WHERE s.id=b.object_id AND LOWER(sa.source_kind) IN ('canvas','siweb')
+              ))
+            )
+            """
         )
         let duplicateNotifications = try database.scalarInt(
-            "SELECT COALESCE(SUM(n-1),0) FROM (SELECT COUNT(*) n FROM notification_deliveries GROUP BY notification_key HAVING COUNT(*)>1)"
+            """
+            SELECT COALESCE(SUM(n-1),0) FROM (
+              SELECT COUNT(*) n FROM notification_deliveries d WHERE
+                (d.object_type='source_account' AND EXISTS (
+                  SELECT 1 FROM source_accounts sa WHERE sa.id=d.object_id
+                  AND LOWER(sa.source_kind) IN ('canvas','siweb')
+                )) OR
+                (d.object_type='learning_task' AND EXISTS (
+                  SELECT 1 FROM learning_tasks t JOIN source_accounts sa ON sa.id=t.source_account_id
+                  WHERE t.id=d.object_id AND LOWER(sa.source_kind) IN ('canvas','siweb')
+                )) OR
+                (d.object_type='announcement' AND EXISTS (
+                  SELECT 1 FROM announcements a JOIN source_accounts sa ON sa.id=a.source_account_id
+                  WHERE a.id=d.object_id AND LOWER(sa.source_kind) IN ('canvas','siweb')
+                )) OR
+                (d.object_type='course_meeting' AND EXISTS (
+                  SELECT 1 FROM course_meetings cm JOIN courses c ON c.id=cm.course_id
+                  JOIN source_accounts sa ON sa.id=c.source_account_id
+                  WHERE cm.id=d.object_id AND LOWER(sa.source_kind) IN ('canvas','siweb')
+                ))
+              GROUP BY d.notification_key HAVING COUNT(*)>1
+            )
+            """
         )
         let handling = try database.query(
             "SELECT COUNT(*) count,AVG(numeric_value) average FROM release_metric_events WHERE metric_kind='handling_seconds'"

@@ -6,22 +6,31 @@ protocol DashboardDataReading: Sendable {
 
 final class SQLiteDashboardDataReader: DashboardDataReading, @unchecked Sendable {
     private let database: SQLiteDatabase
+    private let reconciliation: CourseReconciliationService
 
     init(database: SQLiteDatabase) {
         self.database = database
+        reconciliation = CourseReconciliationService(database: database)
     }
 
     func loadSnapshot() throws -> DashboardSnapshot {
-        let courses = try loadCourses()
+        try reconciliation.reconcile()
+        let projection = try loadCourses()
+        let courses = projection.courses
         let coursesByID = Dictionary(uniqueKeysWithValues: courses.map { ($0.id, $0) })
         return DashboardSnapshot(
             sourceHealth: try loadSourceHealth(),
             courses: courses,
-            meetings: try loadMeetings(courses: coursesByID),
-            tasks: try loadTasks(courses: coursesByID),
-            announcements: try loadAnnouncements(courses: coursesByID),
+            meetings: try loadMeetings(courses: coursesByID, aliases: projection.aliases),
+            tasks: try loadTasks(courses: coursesByID, aliases: projection.aliases),
+            announcements: try loadAnnouncements(courses: coursesByID, aliases: projection.aliases),
             confirmations: []
         )
+    }
+
+    private struct CourseProjection {
+        let courses: [Course]
+        let aliases: [UUID: UUID]
     }
 
     private func loadSourceHealth() throws -> [SourceHealth] {
@@ -31,13 +40,13 @@ final class SQLiteDashboardDataReader: DashboardDataReading, @unchecked Sendable
               (SELECT sr.error_category FROM sync_runs sr
                WHERE sr.source_account_id=sa.id ORDER BY sr.started_at DESC LIMIT 1) AS latest_error
             FROM source_accounts sa
-            WHERE sa.source_kind IN ('Canvas', 'SIweb')
+            WHERE LOWER(sa.source_kind) IN ('canvas', 'siweb')
             ORDER BY sa.source_kind
             """
         ).compactMap { row in
             guard let id = row.string("id").flatMap(UUID.init(uuidString:)),
                   let sourceValue = row.string("source_kind"),
-                  let source = SourceKind(rawValue: sourceValue) else { return nil }
+                  let source = SourceKind(databaseValue: sourceValue) else { return nil }
             let error = row.string("latest_error")
             let authorized = row.string("authorization_state") == "authorized"
             let level: HealthLevel = error == nil && authorized ? .healthy : .warning
@@ -49,30 +58,64 @@ final class SQLiteDashboardDataReader: DashboardDataReading, @unchecked Sendable
         }
     }
 
-    private func loadCourses() throws -> [Course] {
-        try database.query(
+    private func loadCourses() throws -> CourseProjection {
+        let rows = try database.query(
             """
             SELECT c.id, c.source_account_id, c.source_object_id, c.name, c.code, c.term, c.source_url,
                    sa.source_kind
             FROM courses c JOIN source_accounts sa ON sa.id=c.source_account_id
-            WHERE sa.source_kind IN ('Canvas', 'SIweb') AND c.source_state='active'
+            WHERE LOWER(sa.source_kind) IN ('canvas', 'siweb') AND c.source_state='active'
             ORDER BY c.name, c.id
             """
-        ).compactMap { row in
+        )
+        var sources: [UUID: SourceKind] = [:]
+        var raw: [UUID: Course] = [:]
+        for row in rows {
             guard let id = row.string("id").flatMap(UUID.init(uuidString:)),
                   let accountID = row.string("source_account_id"),
                   let sourceID = row.string("source_object_id"),
-                  row.string("source_kind").flatMap(SourceKind.init(rawValue:)) != nil else { return nil }
-            return Course(
+                  let source = row.string("source_kind").flatMap(SourceKind.init(databaseValue:)) else { continue }
+            sources[id] = source
+            raw[id] = Course(
                 id: id, sourceAccountID: accountID, sourceObjectID: sourceID,
                 name: row.string("name") ?? "Untitled course", code: row.string("code") ?? "",
                 term: row.string("term") ?? "", colorName: colorName(for: accountID + ":" + sourceID),
                 sourceURL: row.string("source_url")
             )
         }
+        let aliases = try reconciliation.canonicalCourseIDs()
+        var projected: [Course] = []
+        let titleGroups = Dictionary(grouping: raw.values) {
+            CourseIdentityNormalizer.normalizedTitle($0.name)
+        }
+        for course in raw.values.sorted(by: { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }) {
+            let canonical = aliases[course.id] ?? course.id
+            guard canonical == course.id else { continue }
+            if let pair = aliases.first(where: { $0.value == canonical && $0.key != canonical }),
+               let siweb = raw[pair.key], sources[pair.key] == .siweb {
+                let code = CourseIdentityNormalizer.embeddedCode(name: siweb.code, rawCode: siweb.code) ?? siweb.code
+                projected.append(Course(
+                    id: course.id, sourceAccountID: course.sourceAccountID,
+                    sourceObjectID: course.sourceObjectID, name: CourseIdentityNormalizer.displayTitle(
+                        name: course.name, code: ""
+                    ), code: code, term: course.term.isEmpty ? siweb.term : course.term,
+                    colorName: course.colorName, sourceURL: course.sourceURL
+                ))
+            } else {
+                let duplicateTitle = (titleGroups[CourseIdentityNormalizer.normalizedTitle(course.name)]?.count ?? 0) > 1
+                let sourceSuffix = duplicateTitle ? " (\(sources[course.id]?.rawValue ?? "Source"))" : ""
+                projected.append(Course(
+                    id: course.id, sourceAccountID: course.sourceAccountID,
+                    sourceObjectID: course.sourceObjectID, name: course.name + sourceSuffix,
+                    code: course.code, term: course.term, colorName: course.colorName,
+                    sourceURL: course.sourceURL
+                ))
+            }
+        }
+        return CourseProjection(courses: projected, aliases: aliases)
     }
 
-    private func loadMeetings(courses: [UUID: Course]) throws -> [CourseMeeting] {
+    private func loadMeetings(courses: [UUID: Course], aliases: [UUID: UUID]) throws -> [CourseMeeting] {
         try database.query(
             """
             SELECT m.id, m.course_id, m.starts_at, m.ends_at, m.location, m.source_state, m.is_all_day,
@@ -80,16 +123,17 @@ final class SQLiteDashboardDataReader: DashboardDataReading, @unchecked Sendable
             FROM course_meetings m
             JOIN courses c ON c.id=m.course_id
             JOIN source_accounts sa ON sa.id=c.source_account_id
-            WHERE sa.source_kind IN ('Canvas', 'SIweb')
+            WHERE LOWER(sa.source_kind) IN ('canvas', 'siweb')
             ORDER BY m.starts_at, m.id
             """
         ).compactMap { row in
             guard let id = row.string("id").flatMap(UUID.init(uuidString:)),
-                  let courseID = row.string("course_id").flatMap(UUID.init(uuidString:)),
-                  let course = courses[courseID],
+                  let rawCourseID = row.string("course_id").flatMap(UUID.init(uuidString:)),
                   let start = row.double("starts_at").map(Date.init(timeIntervalSince1970:)),
                   let end = row.double("ends_at").map(Date.init(timeIntervalSince1970:)),
-                  let source = row.string("source_kind").flatMap(SourceKind.init(rawValue:)) else { return nil }
+                  let source = row.string("source_kind").flatMap(SourceKind.init(databaseValue:)) else { return nil }
+            let courseID = aliases[rawCourseID] ?? rawCourseID
+            guard let course = courses[courseID] else { return nil }
             let title = course.code.isEmpty ? course.name : "\(course.code) · \(course.name)"
             return CourseMeeting(
                 id: id, courseID: courseID, title: title, start: start, end: end,
@@ -100,7 +144,7 @@ final class SQLiteDashboardDataReader: DashboardDataReading, @unchecked Sendable
         }
     }
 
-    private func loadTasks(courses: [UUID: Course]) throws -> [LearningTask] {
+    private func loadTasks(courses: [UUID: Course], aliases: [UUID: UUID]) throws -> [LearningTask] {
         try database.query(
             """
             SELECT t.id, t.source_account_id, t.source_object_id, t.course_id, t.title,
@@ -112,16 +156,17 @@ final class SQLiteDashboardDataReader: DashboardDataReading, @unchecked Sendable
             JOIN source_accounts sa ON sa.id=t.source_account_id
             LEFT JOIN local_user_states lus
               ON lus.object_type='learning_task' AND lus.object_id=t.id
-            WHERE sa.source_kind IN ('Canvas', 'SIweb') AND t.source_state='active'
+            WHERE LOWER(sa.source_kind) IN ('canvas', 'siweb') AND t.source_state='active'
             ORDER BY COALESCE(t.official_due_at, 253402300799), t.id
             """
         ).compactMap { row in
             guard let id = row.string("id").flatMap(UUID.init(uuidString:)),
                   let accountID = row.string("source_account_id"),
                   let sourceID = row.string("source_object_id"),
-                  let courseID = row.string("course_id").flatMap(UUID.init(uuidString:)),
-                  courses[courseID] != nil,
-                  let source = row.string("source_kind").flatMap(SourceKind.init(rawValue:)) else { return nil }
+                  let rawCourseID = row.string("course_id").flatMap(UUID.init(uuidString:)),
+                  let source = row.string("source_kind").flatMap(SourceKind.init(databaseValue:)) else { return nil }
+            let courseID = aliases[rawCourseID] ?? rawCourseID
+            guard courses[courseID] != nil else { return nil }
             return LearningTask(
                 id: id, sourceAccountID: accountID, sourceObjectID: sourceID,
                 courseID: courseID, title: row.string("title") ?? "Untitled task",
@@ -137,7 +182,7 @@ final class SQLiteDashboardDataReader: DashboardDataReading, @unchecked Sendable
         }
     }
 
-    private func loadAnnouncements(courses: [UUID: Course]) throws -> [Announcement] {
+    private func loadAnnouncements(courses: [UUID: Course], aliases: [UUID: UUID]) throws -> [Announcement] {
         try database.query(
             """
             SELECT a.id, a.source_object_id, a.course_id, a.title, a.summary,
@@ -146,16 +191,17 @@ final class SQLiteDashboardDataReader: DashboardDataReading, @unchecked Sendable
             JOIN source_accounts sa ON sa.id=a.source_account_id
             LEFT JOIN local_user_states lus
               ON lus.object_type='announcement' AND lus.object_id=a.id
-            WHERE sa.source_kind IN ('Canvas', 'SIweb') AND a.source_state='active'
+            WHERE LOWER(sa.source_kind) IN ('canvas', 'siweb') AND a.source_state='active'
             ORDER BY a.published_at DESC, a.id
             """
         ).compactMap { row in
             guard let id = row.string("id").flatMap(UUID.init(uuidString:)),
                   let sourceID = row.string("source_object_id"),
-                  let courseID = row.string("course_id").flatMap(UUID.init(uuidString:)),
-                  courses[courseID] != nil,
+                  let rawCourseID = row.string("course_id").flatMap(UUID.init(uuidString:)),
                   let published = row.double("published_at").map(Date.init(timeIntervalSince1970:)),
-                  let source = row.string("source_kind").flatMap(SourceKind.init(rawValue:)) else { return nil }
+                  let source = row.string("source_kind").flatMap(SourceKind.init(databaseValue:)) else { return nil }
+            let courseID = aliases[rawCourseID] ?? rawCourseID
+            guard courses[courseID] != nil else { return nil }
             return Announcement(
                 id: id, sourceObjectID: sourceID, courseID: courseID,
                 title: row.string("title") ?? "Untitled announcement",

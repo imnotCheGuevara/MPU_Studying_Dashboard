@@ -87,6 +87,44 @@ struct SettingsView: View {
                             )
                         }
                     }
+                    if !model.courseMappingDecisions.isEmpty {
+                        settingsCard(model.text("Course reconciliation"), icon: "arrow.triangle.merge") {
+                            Text(model.text("Canvas and SIweb records stay unchanged. Confirmed mappings only provide one local dashboard identity."))
+                                .font(.caption).foregroundStyle(.secondary)
+                            ForEach(Array(model.courseMappingDecisions.enumerated()), id: \.element.id) { index, decision in
+                                if index > 0 { Divider() }
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack(alignment: .firstTextBaseline) {
+                                        Text(model.text(mappingStateLabel(decision.state))).font(.headline)
+                                        Spacer()
+                                        Text("\(Int((decision.confidence * 100).rounded()))%")
+                                            .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                                    }
+                                    sourceCourseRow("Canvas", name: decision.canvasName, code: decision.canvasCode)
+                                    sourceCourseRow("SIweb", name: decision.siwebName, code: decision.siwebCode)
+                                    Text(model.text(mappingReasonLabel(decision.origin)))
+                                        .font(.caption).foregroundStyle(.secondary)
+                                    HStack {
+                                        if decision.state == .proposed {
+                                            Button(model.text("Map")) { model.mapCourses(decision.id) }
+                                                .buttonStyle(.borderedProminent)
+                                                .accessibilityIdentifier("course-map-\(decision.id.uuidString)")
+                                            Button(model.text("Keep separate")) { model.keepCoursesSeparate(decision.id) }
+                                                .accessibilityIdentifier("course-separate-\(decision.id.uuidString)")
+                                        } else {
+                                            if decision.canUndo {
+                                                Button(model.text("Undo")) { model.undoCourseMapping(decision.id) }
+                                                    .accessibilityIdentifier("course-undo-\(decision.id.uuidString)")
+                                            }
+                                            Button(model.text("Reset")) { model.resetCourseMapping(decision.id) }
+                                                .accessibilityIdentifier("course-reset-\(decision.id.uuidString)")
+                                        }
+                                    }
+                                }
+                                .accessibilityElement(children: .contain)
+                            }
+                        }
+                    }
                     settingsCard(model.text("School Outlook"), icon: "pause.circle") {
                         Label(model.text("Paused for school-policy review"), systemImage: "pause.circle.fill")
                             .font(.headline).foregroundStyle(.secondary)
@@ -326,6 +364,39 @@ struct SettingsView: View {
             Button(model.text("Cancel"), role: .cancel) {}
         } message: {
             Text(model.text(pendingDestructiveAction?.explanation ?? ""))
+        }
+    }
+
+    @ViewBuilder
+    private func sourceCourseRow(_ source: String, name: String, code: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Badge(text: source, color: source == "Canvas" ? .red : .blue)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name)
+                if !code.isEmpty { Text(code).font(.caption.monospaced()).foregroundStyle(.secondary) }
+            }
+        }
+    }
+
+    private func mappingStateLabel(_ state: CourseMappingDecisionState) -> String {
+        switch state {
+        case .proposed: "Mapping needs confirmation"
+        case .confirmed: "Mapped locally"
+        case .separate: "Kept separate locally"
+        case .undone: "Mapping decision undone"
+        }
+    }
+
+    private func mappingReasonLabel(_ origin: String) -> String {
+        switch origin {
+        case "auto_full_code_title": "Matched by full module code and title."
+        case "auto_code_family_unique_title": "Matched by compatible module-code family and unique title."
+        case "proposed_unique_title_code_conflict": "The title is uniquely shared, but the module-code families disagree. Review both sources before mapping."
+        case "user_map": "You confirmed this local mapping."
+        case "user_keep_separate": "You chose to keep these source records separate."
+        case "user_reset": "This decision was reset for review."
+        case "user_undo": "The most recent local decision was undone."
+        default: "Local course reconciliation decision."
         }
     }
 

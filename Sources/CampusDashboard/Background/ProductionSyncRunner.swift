@@ -49,6 +49,9 @@ struct ProductionSyncRunner: ScheduledSyncRunner {
         guard !accounts.isEmpty else { return [] }
         let engine = DeterministicSyncEngine(database: database, accounts: accounts, readers: readers)
         let outcomes = await engine.synchronizeAll(trigger: trigger)
+        // This only updates local reconciliation metadata and signal targets. It never
+        // enqueues Calendar work; Calendar remains behind the existing explicit preview/apply gate.
+        _ = try? CourseReconciliationService(database: database).reconcile()
         // AI runs only after deterministic source transactions commit. Its failure cannot
         // change source outcomes, and the coordinator is a no-op while AI is disabled.
         _ = await aiCoordinator?.processPendingCanvasRecords(limit: 100)

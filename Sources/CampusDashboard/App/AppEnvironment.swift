@@ -13,6 +13,7 @@ enum AppEnvironment {
         let backgroundScheduler: BackgroundSyncScheduler?
         let aiCoordinator: AIParsingCoordinator?
         let academicSignalCoordinator: AcademicSignalCoordinator?
+        let courseReconciliation: CourseReconciliationService?
         let outlookAuthorization: OutlookAuthorizationService?
         let privacyDiagnostics: PrivacyDiagnosticsService?
         let releaseReadiness: ReleaseReadinessService?
@@ -47,6 +48,7 @@ enum AppEnvironment {
                 deepSeekConfiguration: deepSeekConfiguration
             )
             let academicSignals = AcademicSignalCoordinator(database: database, provider: deepSeek)
+            let courseReconciliation = CourseReconciliationService(database: database)
             let runner = ProductionSyncRunner(
                 database: database, calendar: calendar, notifications: notifications,
                 aiCoordinator: ai, academicSignalCoordinator: academicSignals
@@ -74,6 +76,7 @@ enum AppEnvironment {
                 calendarService: calendar, notificationService: notifications,
                 backgroundScheduler: scheduler, aiCoordinator: ai,
                 academicSignalCoordinator: academicSignals,
+                courseReconciliation: courseReconciliation,
                 outlookAuthorization: nil,
                 privacyDiagnostics: privacyDiagnostics,
                 releaseReadiness: releaseReadiness
@@ -86,6 +89,7 @@ enum AppEnvironment {
                 dashboardDataReader: nil,
                 calendarService: nil, notificationService: nil, backgroundScheduler: nil,
                 aiCoordinator: nil, academicSignalCoordinator: nil,
+                courseReconciliation: nil,
                 outlookAuthorization: nil, privacyDiagnostics: nil, releaseReadiness: nil
             )
         }

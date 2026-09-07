@@ -189,6 +189,7 @@ struct SpatialTimeGrid: View {
         case .officialDeadline: .red
         case .confirmedInferredDeadline: .purple
         case .confirmedExam: .orange
+        case .confirmedScheduleChange: .teal
         }
     }
 
@@ -198,6 +199,7 @@ struct SpatialTimeGrid: View {
         case .officialDeadline: "exclamationmark.circle.fill"
         case .confirmedInferredDeadline: "checkmark.sparkles"
         case .confirmedExam: "graduationcap.fill"
+        case .confirmedScheduleChange: "arrow.triangle.2.circlepath"
         }
     }
 
@@ -207,6 +209,7 @@ struct SpatialTimeGrid: View {
         case .officialDeadline: "Official deadline"
         case .confirmedInferredDeadline: "Confirmed inferred deadline"
         case .confirmedExam: "Confirmed exam"
+        case .confirmedScheduleChange: "Confirmed schedule change"
         }
         return Localizer.text(key, language: language)
     }

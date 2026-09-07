@@ -562,7 +562,7 @@ struct AcademicSignalTests {
             bindings: [.text(accountID), .text("SIweb"), .text("https://siweb.invalid/\(sourceObjectID)"), .text("Synthetic SIweb"), .text("authorized"), .text("{}")] )
         try database.execute(
             "INSERT INTO courses(id,source_account_id,source_object_id,name,code,term,time_zone,source_state,first_seen_at,last_seen_at) VALUES(?,?,?,?,?,'','Asia/Macau','active',1,1)",
-            bindings: [.text(courseID.uuidString), .text(accountID), .text(sourceObjectID), .text("Synthetic SIweb course"), .text(code)])
+            bindings: [.text(courseID.uuidString), .text(accountID), .text(sourceObjectID), .text("Synthetic Course"), .text(code)])
         try database.execute(
             "INSERT INTO course_meetings(id,course_id,source_object_id,starts_at,ends_at,is_all_day,original_time_zone,location,source_state) VALUES(?,?,?,?,?,0,'Asia/Macau','Room A','active')",
             bindings: [.text(meetingID.uuidString), .text(courseID.uuidString), .text(meetingObjectID), .real(2_000_000_000), .real(2_000_003_600)])

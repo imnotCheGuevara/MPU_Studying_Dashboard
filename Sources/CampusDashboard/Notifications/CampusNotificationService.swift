@@ -35,16 +35,32 @@ final class CampusNotificationService: NotificationService, @unchecked Sendable 
     func preferences() throws -> NotificationPreferences { try persistence.preferences() }
 
     func courseSettings() throws -> [NotificationCourseSetting] {
-        try database.query(
+        try CourseReconciliationService(database: database).reconcile()
+        return try database.query(
             """
-            SELECT courses.id, courses.name, COALESCE(course_notification_preferences.enabled, 1) AS enabled
-            FROM courses LEFT JOIN course_notification_preferences
-              ON course_notification_preferences.course_id = courses.id
-            WHERE courses.source_state = 'active' ORDER BY courses.name, courses.id
+            SELECT courses.id,courses.name,courses.code,sa.source_kind,
+                   mapped.code AS mapped_code,m.canvas_course_id
+            FROM courses JOIN source_accounts sa ON sa.id=courses.source_account_id
+            LEFT JOIN academic_course_mappings m
+              ON m.canvas_course_id=courses.id AND m.is_active=1 AND m.decision_state='confirmed'
+            LEFT JOIN courses mapped ON mapped.id=m.siweb_course_id
+            WHERE courses.source_state='active' AND LOWER(sa.source_kind) IN ('canvas','siweb')
+              AND NOT EXISTS (
+                SELECT 1 FROM academic_course_mappings hidden
+                WHERE hidden.siweb_course_id=courses.id AND hidden.is_active=1
+                  AND hidden.decision_state='confirmed'
+              )
+            ORDER BY courses.name,courses.id
             """
         ).compactMap { row in
             guard let id = row.string("id"), let name = row.string("name") else { return nil }
-            return NotificationCourseSetting(id: id, name: name, enabled: row.int("enabled") != 0)
+            let mappedCode = row.string("mapped_code") ?? ""
+            let display = row.string("canvas_course_id") == nil
+                ? "\(name) (\(row.string("source_kind") ?? "Source"))"
+                : CourseIdentityNormalizer.displayTitle(name: name, code: mappedCode)
+            return NotificationCourseSetting(
+                id: id, name: display, enabled: (try? persistence.courseEnabled(id)) ?? true
+            )
         }
     }
 
@@ -191,7 +207,9 @@ final class CampusNotificationService: NotificationService, @unchecked Sendable 
             SELECT learning_tasks.id, learning_tasks.title, learning_tasks.normalized_type,
               learning_tasks.official_type, learning_tasks.course_id, courses.name AS course_name
             FROM learning_tasks LEFT JOIN courses ON courses.id = learning_tasks.course_id
+            JOIN source_accounts sa ON sa.id=learning_tasks.source_account_id
             WHERE learning_tasks.id = ? AND learning_tasks.source_state = 'active'
+              AND LOWER(sa.source_kind) IN ('canvas','siweb')
             """, bindings: [.text(objectID)]
         ).first, try persistence.courseEnabled(row.string("course_id")) {
             let isQuiz = (row.string("normalized_type") ?? row.string("official_type") ?? "")
@@ -211,7 +229,9 @@ final class CampusNotificationService: NotificationService, @unchecked Sendable 
             SELECT announcements.id, announcements.title, announcements.course_id,
               courses.name AS course_name FROM announcements
             LEFT JOIN courses ON courses.id = announcements.course_id
+            JOIN source_accounts sa ON sa.id=announcements.source_account_id
             WHERE announcements.id = ? AND announcements.source_state = 'active'
+              AND LOWER(sa.source_kind) IN ('canvas','siweb')
             """, bindings: [.text(objectID)]
         ).first, try persistence.courseEnabled(row.string("course_id")) {
             let fire = adjustedForQuietHours(clock.now.addingTimeInterval(1), preferences: preferences)
@@ -235,7 +255,8 @@ final class CampusNotificationService: NotificationService, @unchecked Sendable 
             """
             SELECT learning_tasks.*, courses.name AS course_name FROM learning_tasks
             LEFT JOIN courses ON courses.id = learning_tasks.course_id
-            WHERE learning_tasks.source_state = 'active'
+            JOIN source_accounts sa ON sa.id=learning_tasks.source_account_id
+            WHERE learning_tasks.source_state = 'active' AND LOWER(sa.source_kind) IN ('canvas','siweb')
             """
         )
         for row in rows where try persistence.courseEnabled(row.string("course_id")) {
@@ -274,7 +295,8 @@ final class CampusNotificationService: NotificationService, @unchecked Sendable 
             SELECT course_meetings.*, courses.name AS course_name,
               courses.id AS notification_course_id FROM course_meetings
             JOIN courses ON courses.id = course_meetings.course_id
-            WHERE course_meetings.source_state = 'active'
+            JOIN source_accounts sa ON sa.id=courses.source_account_id
+            WHERE course_meetings.source_state = 'active' AND LOWER(sa.source_kind) IN ('canvas','siweb')
             """
         )
         for row in rows where try persistence.courseEnabled(row.string("notification_course_id")) {

@@ -88,6 +88,12 @@ enum DatabaseMigrator {
                 try database.execute("PRAGMA user_version = 12")
             }
         }
+        if version < 13 {
+            try database.transaction {
+                for statement in version13Statements { try database.execute(statement) }
+                try database.execute("PRAGMA user_version = 13")
+            }
+        }
 
         let finalVersion = try database.scalarInt("PRAGMA user_version")
         guard finalVersion == SQLiteDatabase.currentSchemaVersion else {
@@ -113,6 +119,28 @@ enum DatabaseMigrator {
             updated_at REAL NOT NULL
         )
         """
+    ]
+
+    private static let version13Statements = [
+        "ALTER TABLE academic_course_mappings ADD COLUMN decision_state TEXT NOT NULL DEFAULT 'confirmed'",
+        "ALTER TABLE academic_course_mappings ADD COLUMN canvas_code_key TEXT",
+        "ALTER TABLE academic_course_mappings ADD COLUMN siweb_code_key TEXT",
+        "ALTER TABLE academic_course_mappings ADD COLUMN title_key TEXT",
+        "ALTER TABLE academic_course_mappings ADD COLUMN confidence REAL NOT NULL DEFAULT 1.0",
+        "UPDATE academic_course_mappings SET is_active=0,decision_state='proposed' WHERE is_active=1 AND (canvas_course_id IN (SELECT canvas_course_id FROM academic_course_mappings WHERE is_active=1 GROUP BY canvas_course_id HAVING COUNT(*)>1) OR siweb_course_id IN (SELECT siweb_course_id FROM academic_course_mappings WHERE is_active=1 GROUP BY siweb_course_id HAVING COUNT(*)>1))",
+        "CREATE UNIQUE INDEX idx_academic_course_mapping_active_canvas ON academic_course_mappings(canvas_course_id) WHERE is_active=1",
+        "CREATE UNIQUE INDEX idx_academic_course_mapping_active_siweb ON academic_course_mappings(siweb_course_id) WHERE is_active=1",
+        """
+        CREATE TABLE academic_course_mapping_audit (
+            id TEXT PRIMARY KEY,
+            mapping_id TEXT NOT NULL REFERENCES academic_course_mappings(id) ON DELETE CASCADE,
+            action TEXT NOT NULL,
+            previous_state TEXT,
+            new_state TEXT NOT NULL,
+            occurred_at REAL NOT NULL
+        )
+        """,
+        "CREATE INDEX idx_academic_course_mapping_audit_mapping ON academic_course_mapping_audit(mapping_id,occurred_at)"
     ]
 
     private static let version1Statements = [

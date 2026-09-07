@@ -41,21 +41,42 @@ struct NotificationPersistence: Sendable {
     }
 
     func setCourseEnabled(_ enabled: Bool, courseID: String, now: Date) throws {
-        try database.execute(
-            """
-            INSERT INTO course_notification_preferences(course_id, enabled, updated_at)
-            VALUES (?, ?, ?) ON CONFLICT(course_id) DO UPDATE SET
-              enabled=excluded.enabled, updated_at=excluded.updated_at
-            """,
-            bindings: [.text(courseID), .integer(enabled ? 1 : 0), .real(now.timeIntervalSince1970)]
-        )
+        let courseIDs = try notificationCourseIDs(for: courseID)
+        try database.transaction {
+            for id in courseIDs {
+                try database.execute(
+                    """
+                    INSERT INTO course_notification_preferences(course_id, enabled, updated_at)
+                    VALUES (?, ?, ?) ON CONFLICT(course_id) DO UPDATE SET
+                      enabled=excluded.enabled, updated_at=excluded.updated_at
+                    """,
+                    bindings: [.text(id), .integer(enabled ? 1 : 0), .real(now.timeIntervalSince1970)]
+                )
+            }
+        }
     }
 
     func courseEnabled(_ courseID: String?) throws -> Bool {
         guard let courseID else { return true }
-        return try database.query(
-            "SELECT enabled FROM course_notification_preferences WHERE course_id = ?",
-            bindings: [.text(courseID)]
-        ).first?.int("enabled") != 0
+        let courseIDs = try notificationCourseIDs(for: courseID)
+        let placeholders = courseIDs.map { _ in "?" }.joined(separator: ",")
+        let rows = try database.query(
+            "SELECT enabled FROM course_notification_preferences WHERE course_id IN (\(placeholders)) ORDER BY updated_at DESC LIMIT 1",
+            bindings: courseIDs.map(SQLiteValue.text)
+        )
+        return rows.first?.int("enabled") != 0
+    }
+
+    private func notificationCourseIDs(for courseID: String) throws -> [String] {
+        let row = try database.query(
+            """
+            SELECT canvas_course_id,siweb_course_id FROM academic_course_mappings
+            WHERE is_active=1 AND decision_state='confirmed'
+              AND (canvas_course_id=? OR siweb_course_id=?) LIMIT 1
+            """, bindings: [.text(courseID), .text(courseID)]
+        ).first
+        guard let row, let canvas = row.string("canvas_course_id"),
+              let siweb = row.string("siweb_course_id") else { return [courseID] }
+        return [canvas, siweb]
     }
 }
