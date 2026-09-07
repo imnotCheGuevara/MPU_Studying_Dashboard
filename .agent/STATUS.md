@@ -22,7 +22,7 @@ Current authorized stage: **Stage 15R**
 | 13 | PAUSED | `.agent/handoffs/stage-13.md` (`PARTIAL`) | Outlook is deferred outside the active release path pending school IT guidance. Offline implementation remains preserved; no registration, authorization, token, tenant smoke, or mail sync is permitted |
 | 14 | DEFERRED | — | Outlook-only implementation is outside the active release path and cannot start while Stage 13 is paused |
 | 15 | PARTIAL | `.agent/handoffs/stage-15.md` (`PARTIAL`) | Technical integration candidate delivered, but terminal-only SIweb authorization and incomplete setup/recovery/real lifecycle prevent release acceptance; superseded for repair by Stage 15R |
-| 15R | PARTIAL | `.agent/handoffs/stage-15r.md` (`PARTIAL`) | Implementation complete; 219 tests, signed app, privacy scans, Outlook dormancy, and reproducible Git baseline pass. Awaiting user-only Keychain approval, in-app SIweb authorization, dedicated Calendar permission, and final real signed-app walkthrough |
+| 15R | PARTIAL | `.agent/handoffs/stage-15r.md` (`PARTIAL`) | Reconciliation repair committed (`5df93d7`, handoff `bcadf8f`); 226 tests/20 suites, build, signature, safety scans, conflict decisions, canonical presentation, schedule-change semantics, and synthetic-source exclusion pass. Awaiting the user-only Keychain/system prompt, dedicated Calendar permission, and main-thread real signed-app walkthrough before acceptance |
 
 Status meanings:
 
