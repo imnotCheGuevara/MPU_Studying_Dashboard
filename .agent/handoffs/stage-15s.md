@@ -2,6 +2,15 @@
 
 Status: `PARTIAL`
 
+## Main-conversation real verification — 2026-09-08
+
+- The main-checkout signed app was fully quit and relaunched from `dist/Campus Dashboard.app`; macOS no longer reused the prior process.
+- Aggregate-only inspection verified schema version 14 and five active schedule-change signals at `pending / pending_review`. Source object `25573` is pending, has no target, and has no proposal.
+- The Schedule week no longer renders the prior Friday standalone cancellation/make-up entries.
+- The AI confirmation queue visibly presents source object `25573` as `待确认 / 课程安排变更 / 班别需要确认`; its correction sheet opens and states that saving does not authorize Calendar writes.
+- Calendar-binding aggregation found no schedule-change `academic_signal` binding; the sole active academic-signal binding is an exam. No EventKit confirmation or undo was performed.
+- The legacy analysis still displays its incorrect September 11 inferred date alongside September 7 evidence. Safety gating is fixed, but automatic precision for this stored result is not proven until a separately consented reprocess or a user correction produces and previews the exact September 7 SIweb meeting.
+
 ## Outcome
 
 The Stage 15S implementation is complete and all local, synthetic, build, packaging, signature, privacy, notification, presentation, and Calendar-boundary gates pass. Course cancellations and other schedule changes now fail closed unless the affected date role, enrolled SIweb section, proposed meeting ID, persisted target ID, and current unique SIweb meeting all agree. A manual correction only saves a pending proposal; a fresh exact Calendar preview and a separate explicit confirmation are required before the existing course meeting can be modified.

@@ -4,7 +4,7 @@ Updated: 2026-09-08 Asia/Macau.
 
 ## Active state
 
-- **Stage 15S: PARTIAL.** The section/date-role targeting, stale-confirmation, correction, Calendar, notification, and presentation repairs are merged at `8a9e8b7`. The main conversation independently re-ran the 63 focused safety tests; all passed. Real signed-app source/UI/database-migration checks and the user-confirmed exact EventKit confirm/undo lifecycle remain mandatory before acceptance.
+- **Stage 15S: PARTIAL.** Repairs are merged at `8a9e8b7`; the main conversation passed 63 focused tests, relaunched the signed app, verified schema 14, confirmed source `25573` is pending/no-target, opened its correction UI, and observed no standalone Friday entry. Its stored legacy date remains wrong, so a consented reprocess or user correction plus exact preview/confirm/undo remains mandatory.
 - **Stage 15R: PARTIAL.** SIweb in-app authorization now closes correctly and immediately runs exactly one isolated successful SIweb sync (98 records); Canvas remains ready and the former 35-second loop did not recur. Calendar access is restored to the dedicated iCloud calendar. Final acceptance is blocked by Stage 15S and then a user-confirmed real Calendar lifecycle.
 - **Stage 15: PARTIAL.** Its technical work is preserved: 213 tests passed, the synthetic classifier fixture improved from 17/20 to 20/20, the signed bundle built/launched, and live Canvas read-only smoke passed. It is not accepted because setup/recovery and mandatory real signed-app lifecycle checks remain incomplete.
 - **Stage 10: PAUSED at 0/7.** Resume only after Stage 15R passes and the main conversation freezes the new candidate.
@@ -36,9 +36,9 @@ Stage 15S now rejects provider dates unless the affected meeting role, enrolled 
 ## Stage 15S remaining gate
 
 1. Complete signed-app Canvas and SIweb read-only refreshes without exposing source content.
-2. Launch the rebuilt app and verify schema-v14 aggregate migration: legacy confirmed/no-target changes become pending and Calendar-ineligible.
-3. Verify the bilingual pending/correction/exact-preview UI against the reported cancellation.
-4. After fresh action-time approval, confirm and undo only the previewed SIweb meeting in the dedicated Campus Dashboard calendar.
+2. Reprocess source `25573` with explicit DeepSeek data-transfer consent, or let the user correct it to the exact September 7 SIweb meeting.
+3. Verify the resulting exact bilingual preview.
+4. After fresh action-time approval, confirm and undo only that previewed meeting in the dedicated Campus Dashboard calendar.
 
 Do not begin the seven-day trial or claim resume metrics. Do not perform a real EventKit mutation without action-time confirmation from the user in the main conversation. Stage 15R remains blocked until Stage 15S passes and the repaired real lifecycle is revalidated.
 

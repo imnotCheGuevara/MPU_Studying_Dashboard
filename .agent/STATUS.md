@@ -23,7 +23,7 @@ Current authorized stage: **Stage 15S**
 | 14 | DEFERRED | — | Outlook-only implementation is outside the active release path and cannot start while Stage 13 is paused |
 | 15 | PARTIAL | `.agent/handoffs/stage-15.md` (`PARTIAL`) | Technical integration candidate delivered, but terminal-only SIweb authorization and incomplete setup/recovery/real lifecycle prevent release acceptance; superseded for repair by Stage 15R |
 | 15R | PARTIAL | `.agent/handoffs/stage-15r.md` (`PARTIAL`) | Reconciliation repair committed (`5df93d7`, handoff `bcadf8f`); 226 tests/20 suites, build, signature, safety scans, conflict decisions, canonical presentation, schedule-change semantics, and synthetic-source exclusion pass. Awaiting the user-only Keychain/system prompt, dedicated Calendar permission, and main-thread real signed-app walkthrough before acceptance |
-| 15S | PARTIAL | `.agent/handoffs/stage-15s.md` (`PARTIAL`) | Repair merged at `8a9e8b7`; 241-test suite and build/signature gates passed in the stage task, and the main conversation independently passed the 63 focused safety tests. Awaiting signed-app source/UI/v14 migration checks and a separately approved exact EventKit confirm/undo lifecycle. |
+| 15S | PARTIAL | `.agent/handoffs/stage-15s.md` (`PARTIAL`) | Repair merged; tests and signed-app schema-14 safety migration pass. Source `25573` is now pending/no-target and absent from Schedule, with correction UI available. Its legacy wrong date remains; awaiting consented reprocess or user correction, exact preview, and separately approved EventKit confirm/undo. |
 
 Status meanings:
 
