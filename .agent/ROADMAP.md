@@ -31,7 +31,7 @@ The main project conversation owns this roadmap and accepts each stage. Stage co
 - Stages 06 and 07 may run in parallel after Stage 05 is accepted, but only in isolated Git worktrees. In the same checkout, run them sequentially.
 - All other dependency edges are sequential.
 - The DeepSeek track ended with accepted Stage 12. The Outlook track (Stages 13–14) is explicitly deferred pending school IT guidance and is not on the current critical path.
-- Stage 15S is the active release-blocking repair discovered during the Stage 15R real walkthrough. Stage 15R cannot pass until Stage 15S passes and the corrected real schedule-change/Calendar lifecycle is revalidated. Only then may the main conversation freeze a reproducible no-Outlook candidate and resume Stage 10 at 0/7.
+- Stage 15S implementation is merged and synthetic gates pass, but it remains `PARTIAL` until the rebuilt signed app completes source/UI/v14 migration checks and a separately approved exact Calendar confirm/undo lifecycle. Stage 15R cannot pass until those checks succeed. Only then may the main conversation freeze a reproducible no-Outlook candidate and resume Stage 10 at 0/7.
 - Historical Stage 10R gate remains satisfied. Outlook work performed offline during partial Stage 13 earns no acceptance credit and must remain dormant during the trial.
 - Parallel stages must not edit the same central planning files. Each writes only its own handoff.
 
