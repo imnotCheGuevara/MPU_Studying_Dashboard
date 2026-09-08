@@ -101,17 +101,23 @@ struct LearningTask: Identifiable, Equatable, Sendable {
     var localPriority: TaskPriority
     let officialDueIsAllDay: Bool
     let sourceURL: String?
+    let isPlaceholder: Bool
+    var placeholderAlwaysShow: Bool
 
     init(id: UUID, sourceAccountID: String, sourceObjectID: String, courseID: UUID, title: String,
          kind: TaskKind, officialDueAt: Date?, suggestedCompleteAt: Date?, suggestedDateConfirmed: Bool,
          source: SourceKind, isLocallyComplete: Bool, localPriority: TaskPriority,
-         officialDueIsAllDay: Bool = false, sourceURL: String? = nil) {
+         officialDueIsAllDay: Bool = false, sourceURL: String? = nil,
+         isPlaceholder: Bool = false, placeholderAlwaysShow: Bool = false) {
         self.id = id; self.sourceAccountID = sourceAccountID; self.sourceObjectID = sourceObjectID
         self.courseID = courseID; self.title = title; self.kind = kind; self.officialDueAt = officialDueAt
         self.suggestedCompleteAt = suggestedCompleteAt; self.suggestedDateConfirmed = suggestedDateConfirmed
         self.source = source; self.isLocallyComplete = isLocallyComplete; self.localPriority = localPriority
         self.officialDueIsAllDay = officialDueIsAllDay; self.sourceURL = sourceURL
+        self.isPlaceholder = isPlaceholder; self.placeholderAlwaysShow = placeholderAlwaysShow
     }
+
+    var appearsInNormalTaskList: Bool { !isPlaceholder || placeholderAlwaysShow }
 }
 
 struct Announcement: Identifiable, Equatable, Sendable {

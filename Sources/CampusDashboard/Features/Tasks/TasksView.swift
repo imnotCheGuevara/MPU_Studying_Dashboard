@@ -22,35 +22,26 @@ struct TasksView: View {
                     .frame(width: 220)
 
                     ForEach(filteredTasks) { task in
-                        Card {
-                            HStack(alignment: .top) {
-                                Button {
-                                    model.toggleTask(task.id)
-                                } label: {
-                                    Image(systemName: task.isLocallyComplete ? "checkmark.circle.fill" : "circle")
-                                        .font(.title2)
-                                }
-                                .buttonStyle(.plain)
-                                VStack(alignment: .leading, spacing: 6) {
-                                    HStack {
-                                        Text(task.title)
-                                            .font(.headline)
-                                            .strikethrough(task.isLocallyComplete)
-                                        Badge(text: model.text(task.kind.rawValue), color: .blue)
-                                        Spacer()
-                                        Badge(text: model.text(task.localPriority.rawValue), color: task.localPriority == .high ? .red : .orange)
-                                    }
-                                    Text(courseName(task.courseID)).foregroundStyle(.secondary)
-                                    HStack(spacing: 16) {
-                                        Label(task.officialDueAt.map { "\(model.text("Official")): \(model.format($0))" } ?? model.text("No official due date"), systemImage: "building.columns")
-                                        if let suggestion = task.suggestedCompleteAt {
-                                            Label("\(model.text("Suggested")): \(model.format(suggestion))", systemImage: "sparkles")
-                                                .foregroundStyle(task.suggestedDateConfirmed ? .green : .purple)
+                        taskCard(task)
+                    }
+
+                    ForEach(placeholderGroups, id: \.courseID) { group in
+                        DisclosureGroup("\(model.text("Placeholder assignments")) · \(courseName(group.courseID)) (\(group.tasks.count))") {
+                            VStack(spacing: 10) {
+                                ForEach(group.tasks) { task in
+                                    Card {
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            Text(task.title).font(.headline)
+                                            Text(model.text("Stored for source continuity; excluded from AI, Calendar, and notifications."))
+                                                .font(.caption).foregroundStyle(.secondary)
+                                            Toggle(model.text("Always show in task list"), isOn: Binding(
+                                                get: { task.placeholderAlwaysShow },
+                                                set: { model.setPlaceholderAlwaysShow(task.id, alwaysShow: $0) }
+                                            ))
                                         }
                                     }
-                                    .font(.caption)
                                 }
-                            }
+                            }.padding(.top, 8)
                         }
                     }
                 }
@@ -59,8 +50,57 @@ struct TasksView: View {
     }
 
     private var filteredTasks: [LearningTask] {
-        guard let filter else { return model.snapshot.tasks }
-        return model.snapshot.tasks.filter { $0.kind == filter }
+        Self.normalTasks(in: model.snapshot.tasks, filter: filter)
+    }
+
+    private var placeholderGroups: [(courseID: UUID, tasks: [LearningTask])] {
+        Dictionary(grouping: Self.groupedPlaceholders(in: model.snapshot.tasks, filter: filter), by: \.courseID)
+            .map { ($0.key, $0.value.sorted { $0.title < $1.title }) }
+            .sorted { courseName($0.courseID) < courseName($1.courseID) }
+    }
+
+    static func normalTasks(in tasks: [LearningTask], filter: TaskKind?) -> [LearningTask] {
+        tasks.filter { task in
+            task.appearsInNormalTaskList && (filter == nil || task.kind == filter)
+        }
+    }
+
+    static func groupedPlaceholders(in tasks: [LearningTask], filter: TaskKind?) -> [LearningTask] {
+        tasks.filter { task in
+            task.isPlaceholder && !task.placeholderAlwaysShow && (filter == nil || task.kind == filter)
+        }
+    }
+
+    private func taskCard(_ task: LearningTask) -> some View {
+        Card {
+            HStack(alignment: .top) {
+                Button { model.toggleTask(task.id) } label: {
+                    Image(systemName: task.isLocallyComplete ? "checkmark.circle.fill" : "circle").font(.title2)
+                }.buttonStyle(.plain)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text(task.title).font(.headline).strikethrough(task.isLocallyComplete)
+                        Badge(text: model.text(task.kind.rawValue), color: .blue)
+                        if task.isPlaceholder {
+                            Badge(text: model.text("Placeholder"), color: .purple)
+                        }
+                        Spacer()
+                        Badge(text: model.text(task.localPriority.rawValue), color: task.localPriority == .high ? .red : .orange)
+                    }
+                    Text(courseName(task.courseID)).foregroundStyle(.secondary)
+                    Label(task.officialDueAt.map { "\(model.text("Official")): \(model.format($0))" } ?? model.text("No official due date"), systemImage: "building.columns")
+                        .font(.caption)
+                    if task.isPlaceholder {
+                        Text(model.text("Stored for source continuity; excluded from AI, Calendar, and notifications."))
+                            .font(.caption).foregroundStyle(.secondary)
+                        Toggle(model.text("Always show in task list"), isOn: Binding(
+                            get: { task.placeholderAlwaysShow },
+                            set: { model.setPlaceholderAlwaysShow(task.id, alwaysShow: $0) }
+                        ))
+                    }
+                }
+            }
+        }
     }
 
     private func courseName(_ id: UUID) -> String {

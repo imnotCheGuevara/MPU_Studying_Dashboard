@@ -290,6 +290,8 @@ final class DeterministicSyncEngine: SyncService, @unchecked Sendable {
         let existing = try row(type: .learningTask, accountID: account.id, sourceID: value.sourceObjectID)
         let id = existing?.string("id") ?? idGenerator.next().uuidString
         let oldState = existing?.string("source_state")
+        let oldPlaceholder = existing?.string("placeholder_state") == "placeholder"
+        let newPlaceholder = value.isPlaceholder
         let changes = changesForTask(existing, value)
         let courseTZ = try database.query("SELECT time_zone FROM courses WHERE id = ?", bindings: [.text(courseID)]).first?.string("time_zone") ?? "UTC"
         try database.execute(
@@ -298,26 +300,62 @@ final class DeterministicSyncEngine: SyncService, @unchecked Sendable {
               (id, source_account_id, source_object_id, course_id, title, official_type, normalized_type,
                official_due_at, official_due_time_zone, official_due_is_all_day, suggested_complete_at,
                suggestion_origin, suggestion_confirmed_at, opens_at, locks_at, source_url, source_state,
-               source_updated_at, first_seen_at, last_seen_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, NULL, NULL, ?, ?, ?, 'active', ?, ?, ?)
+               source_updated_at, first_seen_at, last_seen_at, placeholder_state,
+               placeholder_evidence_complete, placeholder_has_description, placeholder_has_attachment,
+               placeholder_has_linked_activity, placeholder_has_submission, placeholder_has_action)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, NULL, NULL, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(source_account_id, source_object_id) DO UPDATE SET
               course_id=excluded.course_id, title=excluded.title, official_type=excluded.official_type,
               normalized_type=excluded.normalized_type, official_due_at=excluded.official_due_at,
               official_due_time_zone=excluded.official_due_time_zone, opens_at=excluded.opens_at,
               locks_at=excluded.locks_at, source_url=excluded.source_url, source_state='active',
-              source_updated_at=excluded.source_updated_at, last_seen_at=excluded.last_seen_at
+              source_updated_at=excluded.source_updated_at, last_seen_at=excluded.last_seen_at,
+              placeholder_state=excluded.placeholder_state,
+              placeholder_evidence_complete=excluded.placeholder_evidence_complete,
+              placeholder_has_description=excluded.placeholder_has_description,
+              placeholder_has_attachment=excluded.placeholder_has_attachment,
+              placeholder_has_linked_activity=excluded.placeholder_has_linked_activity,
+              placeholder_has_submission=excluded.placeholder_has_submission,
+              placeholder_has_action=excluded.placeholder_has_action
             """,
             bindings: [
                 .text(id), .text(account.id.uuidString), .text(value.sourceObjectID), .text(courseID),
                 .text(value.title), .text(value.officialType), .text(value.normalizedType),
                 optionalDate(value.officialDueAt), .text(courseTZ), optionalDate(value.opensAt),
                 optionalDate(value.locksAt), optionalText(value.sourceURL), .real(date.timeIntervalSince1970),
-                .real(date.timeIntervalSince1970), .real(date.timeIntervalSince1970)
+                .real(date.timeIntervalSince1970), .real(date.timeIntervalSince1970),
+                .text(newPlaceholder ? "placeholder" : "active"),
+                .integer(value.placeholderEvidence.isComplete ? 1 : 0),
+                .integer(value.placeholderEvidence.hasMeaningfulDescription ? 1 : 0),
+                .integer(value.placeholderEvidence.hasAttachment ? 1 : 0),
+                .integer(value.placeholderEvidence.hasLinkedActivity ? 1 : 0),
+                .integer(value.placeholderEvidence.hasMeaningfulSubmission ? 1 : 0),
+                .integer(value.placeholderEvidence.hasActionableRequirement ? 1 : 0)
             ]
         )
+        if existing == nil && newPlaceholder {
+            try updatePlaceholderMetrics(suppressedDelta: 1, reactivatedDelta: 0, at: date)
+        } else if oldPlaceholder != newPlaceholder {
+            try updatePlaceholderMetrics(
+                suppressedDelta: newPlaceholder ? 1 : 0,
+                reactivatedDelta: newPlaceholder ? 0 : 1, at: date
+            )
+        } else if newPlaceholder && oldState == SyncSourceState.cancelled.rawValue {
+            // Reappearing unchanged placeholders are active again, so refresh the
+            // current count without treating the same shell as newly suppressed.
+            try updatePlaceholderMetrics(suppressedDelta: 0, reactivatedDelta: 0, at: date)
+        }
         try resetPresence(type: .learningTask, sourceID: value.sourceObjectID, account: account, runID: runID, at: date)
         try record(changes, type: .learningTask, objectID: id, at: date)
-        if let due = value.officialDueAt, due >= date,
+        if existing != nil && newPlaceholder && !oldPlaceholder {
+            try enqueue(.calendarRemove(objectType: SyncObjectType.learningTask.rawValue, objectID: id), keyVersion: "placeholder", at: date)
+            for delivery in try database.query(
+                "SELECT notification_key FROM notification_deliveries WHERE object_type='learning_task' AND object_id=? AND state='scheduled'",
+                bindings: [.text(id)]
+            ) {
+                if let key = delivery.string("notification_key") { try enqueue(.notificationCancel(key: key), keyVersion: "placeholder", at: date) }
+            }
+        } else if !newPlaceholder, let due = value.officialDueAt, due >= date,
            (existing == nil || !changes.isEmpty || oldState == "cancelled") {
             try enqueue(.calendarUpsert(objectType: SyncObjectType.learningTask.rawValue, objectID: id), keyVersion: taskVersion(value), at: date)
         } else if existing != nil, !changes.isEmpty,
@@ -325,11 +363,42 @@ final class DeterministicSyncEngine: SyncService, @unchecked Sendable {
                   previousDue >= date.timeIntervalSince1970 {
             try enqueue(.calendarRemove(objectType: SyncObjectType.learningTask.rawValue, objectID: id), keyVersion: "expired-or-undated", at: date)
         }
-        if existing == nil && !suppressNewNotification {
-            let key = "new:\(SyncObjectType.learningTask.rawValue):\(id)"
-            try enqueue(.notificationNew(key: key, objectID: id, at: date), keyVersion: "new", at: date)
+        let becameActionable = !newPlaceholder && (existing == nil || oldPlaceholder)
+        if becameActionable && !suppressNewNotification {
+            if try !hasNewTaskNotificationHistory(objectID: id) {
+                let key = "new:\(SyncObjectType.learningTask.rawValue):\(id)"
+                try enqueue(.notificationNew(key: key, objectID: id, at: date), keyVersion: "new", at: date)
+            }
         }
         count(existing: existing, changes: changes, oldState: oldState, newState: "active", counters: &counters)
+    }
+
+    private func updatePlaceholderMetrics(suppressedDelta: Int, reactivatedDelta: Int, at date: Date) throws {
+        try database.execute(
+            """
+            UPDATE placeholder_metrics SET suppressed_total=suppressed_total+?,
+              reactivated_total=reactivated_total+?,
+              current_suppressed=(SELECT COUNT(*) FROM learning_tasks
+                WHERE source_state='active' AND placeholder_state='placeholder'), updated_at=?
+            WHERE singleton_key=1
+            """,
+            bindings: [.integer(Int64(suppressedDelta)), .integer(Int64(reactivatedDelta)),
+                       .real(date.timeIntervalSince1970)]
+        )
+    }
+
+    private func hasNewTaskNotificationHistory(objectID: String) throws -> Bool {
+        let key = "new:\(SyncObjectType.learningTask.rawValue):\(objectID)"
+        return try !database.query(
+            """
+            SELECT 1 AS found FROM outbox_work
+              WHERE kind='notification.schedule' AND object_type='notification' AND object_id=?
+            UNION ALL
+            SELECT 1 AS found FROM notification_deliveries WHERE notification_key=?
+            LIMIT 1
+            """,
+            bindings: [.text(objectID), .text(key)]
+        ).isEmpty
     }
 
     private func apply(
@@ -434,6 +503,9 @@ final class DeterministicSyncEngine: SyncService, @unchecked Sendable {
             )
             if next >= 2, row.string("source_state") != SyncSourceState.cancelled.rawValue {
                 try softCancel(type: type, objectID: objectID, at: date)
+                if type == .learningTask, row.string("placeholder_state") == "placeholder" {
+                    try updatePlaceholderMetrics(suppressedDelta: 0, reactivatedDelta: 0, at: date)
+                }
                 try record([
                     ("source_state", row.string("source_state"), SyncSourceState.cancelled.rawValue)
                 ], type: type, objectID: objectID, at: date)
@@ -682,6 +754,7 @@ final class DeterministicSyncEngine: SyncService, @unchecked Sendable {
             ("opens_at", summary(row.double("opens_at")), summary(value.opensAt)),
             ("locks_at", summary(row.double("locks_at")), summary(value.locksAt)),
             ("source_url", row.string("source_url"), value.sourceURL),
+            ("placeholder_state", row.string("placeholder_state"), value.isPlaceholder ? "placeholder" : "active"),
             ("source_state", row.string("source_state"), "active")
         ])
     }

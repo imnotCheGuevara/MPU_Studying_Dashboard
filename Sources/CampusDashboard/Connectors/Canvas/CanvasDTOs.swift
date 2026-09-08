@@ -30,6 +30,7 @@ struct CanvasCourseDTO: Decodable {
 }
 
 struct CanvasExternalToolDTO: Decodable { let url: URL? }
+struct CanvasAttachmentDTO: Decodable { let id: CanvasID? }
 
 struct CanvasAssignmentDTO: Decodable {
     let id: CanvasID
@@ -44,6 +45,10 @@ struct CanvasAssignmentDTO: Decodable {
     let isQuizAssignment: Bool?
     let hasOverrides: Bool?
     let externalTool: CanvasExternalToolDTO?
+    let description: String?
+    let attachments: [CanvasAttachmentDTO]?
+    let annotatableAttachmentID: CanvasID?
+    let placeholderEvidenceComplete: Bool
 
     enum CodingKeys: String, CodingKey {
         case id, name
@@ -57,6 +62,30 @@ struct CanvasAssignmentDTO: Decodable {
         case isQuizAssignment = "is_quiz_assignment"
         case hasOverrides = "has_overrides"
         case externalTool = "external_tool_tag_attributes"
+        case annotatableAttachmentID = "annotatable_attachment_id"
+        case description, attachments
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(CanvasID.self, forKey: .id)
+        courseID = try c.decodeIfPresent(CanvasID.self, forKey: .courseID)
+        name = try c.decode(String.self, forKey: .name)
+        dueAt = try c.decodeIfPresent(Date.self, forKey: .dueAt)
+        unlockAt = try c.decodeIfPresent(Date.self, forKey: .unlockAt)
+        lockAt = try c.decodeIfPresent(Date.self, forKey: .lockAt)
+        htmlURL = try c.decodeIfPresent(URL.self, forKey: .htmlURL)
+        submissionTypes = try c.decodeIfPresent([String].self, forKey: .submissionTypes) ?? []
+        quizID = try c.decodeIfPresent(CanvasID.self, forKey: .quizID)
+        isQuizAssignment = try c.decodeIfPresent(Bool.self, forKey: .isQuizAssignment)
+        hasOverrides = try c.decodeIfPresent(Bool.self, forKey: .hasOverrides)
+        externalTool = try c.decodeIfPresent(CanvasExternalToolDTO.self, forKey: .externalTool)
+        description = try c.decodeIfPresent(String.self, forKey: .description)
+        attachments = try c.decodeIfPresent([CanvasAttachmentDTO].self, forKey: .attachments)
+        annotatableAttachmentID = try c.decodeIfPresent(CanvasID.self, forKey: .annotatableAttachmentID)
+        placeholderEvidenceComplete = c.contains(.dueAt) && c.contains(.description)
+            && c.contains(.submissionTypes) && c.contains(.quizID)
+            && c.contains(.externalTool) && c.contains(.annotatableAttachmentID)
     }
 
     func payload(fallbackCourseID: String) -> CanvasTaskPayload {
@@ -69,8 +98,35 @@ struct CanvasAssignmentDTO: Decodable {
             unlockAt: unlockAt,
             lockAt: lockAt,
             sourceURL: htmlURL,
-            hasAssignmentOverrides: hasOverrides == true
+            hasAssignmentOverrides: hasOverrides == true,
+            placeholderEvidence: TaskPlaceholderEvidence(
+                isComplete: placeholderEvidenceComplete,
+                hasMeaningfulDescription: Self.meaningfulText(description),
+                hasAttachment: annotatableAttachmentID != nil || !(attachments ?? []).isEmpty,
+                hasLinkedActivity: quizID != nil || isQuizAssignment == true || externalTool != nil
+                    || submissionTypes.contains(where: { ["online_quiz", "external_tool"].contains($0) }),
+                hasMeaningfulSubmission: submissionTypes.contains { !$0.isEmpty && $0 != "none" },
+                hasActionableRequirement: Self.actionableTitle(name)
+            )
         )
+    }
+
+    private static func meaningfulText(_ value: String?) -> Bool {
+        guard let value else { return false }
+        if value.range(of: #"<a\b[^>]*\bhref\s*="#,
+                       options: [.regularExpression, .caseInsensitive]) != nil {
+            return true
+        }
+        let plain = value.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "&nbsp;", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return !plain.isEmpty
+    }
+
+    private static func actionableTitle(_ value: String) -> Bool {
+        let text = value.lowercased()
+        return ["offline", "reading", "read ", "prepare", "prep", "attendance", "attend",
+                "线下", "阅读", "预习", "准备", "出席", "签到"].contains { text.contains($0) }
     }
 
     private var classification: String {

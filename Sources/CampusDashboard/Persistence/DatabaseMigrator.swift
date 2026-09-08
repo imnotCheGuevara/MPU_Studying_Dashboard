@@ -109,6 +109,18 @@ enum DatabaseMigrator {
                 try database.execute("PRAGMA user_version = 14")
             }
         }
+        if version < 15 {
+            try database.transaction {
+                let tables = Set(try database.query(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).compactMap { $0.string("name") })
+                if tables.contains("learning_tasks") {
+                    for statement in version15LearningTaskStatements { try database.execute(statement) }
+                }
+                for statement in version15Statements { try database.execute(statement) }
+                try database.execute("PRAGMA user_version = 15")
+            }
+        }
 
         let finalVersion = try database.scalarInt("PRAGMA user_version")
         guard finalVersion == SQLiteDatabase.currentSchemaVersion else {
@@ -235,6 +247,31 @@ enum DatabaseMigrator {
         WHERE is_active=1 AND COALESCE(adopted_category,category)='course_schedule_change'
           AND confirmation_state IN ('confirmed','corrected')
         """
+    ]
+
+    private static let version15LearningTaskStatements = [
+        "ALTER TABLE learning_tasks ADD COLUMN placeholder_state TEXT NOT NULL DEFAULT 'active'",
+        "ALTER TABLE learning_tasks ADD COLUMN placeholder_evidence_complete INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE learning_tasks ADD COLUMN placeholder_has_description INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE learning_tasks ADD COLUMN placeholder_has_attachment INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE learning_tasks ADD COLUMN placeholder_has_linked_activity INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE learning_tasks ADD COLUMN placeholder_has_submission INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE learning_tasks ADD COLUMN placeholder_has_action INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE learning_tasks ADD COLUMN placeholder_always_show INTEGER NOT NULL DEFAULT 0",
+        "CREATE INDEX idx_learning_tasks_placeholder ON learning_tasks(placeholder_state,source_state)"
+    ]
+
+    private static let version15Statements = [
+        """
+        CREATE TABLE placeholder_metrics (
+            singleton_key INTEGER PRIMARY KEY CHECK(singleton_key=1),
+            suppressed_total INTEGER NOT NULL DEFAULT 0,
+            reactivated_total INTEGER NOT NULL DEFAULT 0,
+            current_suppressed INTEGER NOT NULL DEFAULT 0,
+            updated_at REAL NOT NULL
+        )
+        """,
+        "INSERT INTO placeholder_metrics(singleton_key,updated_at) VALUES(1,CAST(strftime('%s','now') AS REAL))"
     ]
 
     private static let version1Statements = [

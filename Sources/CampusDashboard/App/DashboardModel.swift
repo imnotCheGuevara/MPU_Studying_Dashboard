@@ -6,7 +6,7 @@ enum AppSection: String, CaseIterable, Identifiable, Sendable {
     case schedule = "Schedule"
     case tasks = "Tasks"
     case announcements = "Announcements"
-    case confirmations = "AI Confirmation Queue"
+    case confirmations = "Needs Review"
     case settings = "Settings"
 
     var id: Self { self }
@@ -38,6 +38,22 @@ enum DemoScenario: String, CaseIterable, Identifiable, Sendable {
     case permissionDenied = "Permission denied"
 
     var id: Self { self }
+}
+
+enum NeedsReviewPolicy {
+    static func includes(_ item: AcademicSignalRecord) -> Bool {
+        let category = item.adoptedCategory ?? item.category
+        if [.confirmed, .corrected, .rejected].contains(item.confirmationState) { return false }
+        let unsafeSchedule = category == .courseScheduleChange
+            && (item.targetMeetingID == nil || item.audienceResolution != .resolved)
+        return item.confirmationState == .pending || unsafeSchedule
+            || !item.conflicts.isEmpty
+            || (category == .other && item.confirmationState == .notRequired)
+    }
+
+    static func includes(_ item: AcademicAnnouncementAnalysis) -> Bool {
+        item.failureCategory != nil || item.primaryCategory == .other
+    }
 }
 
 @MainActor
@@ -374,6 +390,7 @@ final class DashboardModel: ObservableObject {
             academicSignals = showsSyntheticAIResultsForQA ? signals : signals.filter {
                 ProductionAIResultPolicy.includes(provider: $0.provider, model: $0.model)
             }
+            ignoredAcademicAnalysisIDs = (try? releaseReadiness?.ignoredAnalysisIDs()) ?? []
             if aiSettings.enabled && aiSettings.providerKind == .external {
                 aiMessage = "DeepSeek is enabled with current consent. Only approved bounded fields may leave this Mac."
             } else if aiSettings.enabled {
@@ -383,6 +400,23 @@ final class DashboardModel: ObservableObject {
             }
         } catch { aiMessage = "AI settings could not be loaded. Deterministic synchronization remains available." }
     }
+
+    var needsReviewSignals: [AcademicSignalRecord] {
+        academicSignals.filter(NeedsReviewPolicy.includes)
+    }
+
+    var needsReviewAnalyses: [AcademicAnnouncementAnalysis] {
+        let signalAnalysisIDs = Set(academicSignals.map(\.analysisID))
+        var seen = Set<UUID>()
+        return academicAnalyses.filter { item in
+            guard !signalAnalysisIDs.contains(item.id), !ignoredAcademicAnalysisIDs.contains(item.id),
+                  !seen.contains(item.announcementID) else { return false }
+            seen.insert(item.announcementID)
+            return NeedsReviewPolicy.includes(item)
+        }
+    }
+
+    var needsReviewCount: Int { aiConfirmations.count + needsReviewSignals.count + needsReviewAnalyses.count }
 
     func setAIAssistanceEnabled(_ enabled: Bool) {
         guard let aiCoordinator else { return }
@@ -1048,6 +1082,16 @@ final class DashboardModel: ObservableObject {
         ))
     }
 
+    func setPlaceholderAlwaysShow(_ id: UUID, alwaysShow: Bool) {
+        guard let index = snapshot.tasks.firstIndex(where: { $0.id == id && $0.isPlaceholder }) else { return }
+        do {
+            try (dataReader as? any PlaceholderAssignmentManaging)?.setPlaceholderAlwaysShow(
+                taskID: id, alwaysShow: alwaysShow
+            )
+            snapshot.tasks[index].placeholderAlwaysShow = alwaysShow
+        } catch { return }
+    }
+
     func toggleAnnouncement(_ id: UUID) {
         guard let index = snapshot.announcements.firstIndex(where: { $0.id == id }) else { return }
         snapshot.announcements[index].isLocallyRead.toggle()
@@ -1067,6 +1111,7 @@ final class DashboardModel: ObservableObject {
         let calendar = Calendar.autoupdatingCurrent
         let now = nowProvider()
         return snapshot.tasks.filter {
+            guard !$0.isPlaceholder else { return false }
             guard let due = $0.officialDueAt else { return false }
             return calendar.isDate(due, inSameDayAs: now)
         }

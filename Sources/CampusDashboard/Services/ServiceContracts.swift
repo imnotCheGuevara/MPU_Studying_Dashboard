@@ -43,6 +43,7 @@ struct CanvasTaskPayload: Equatable, Sendable {
     /// Canvas reports that the assignment has at least one override. This does
     /// not prove the requesting user's effective date came from an override.
     let hasAssignmentOverrides: Bool
+    let placeholderEvidence: TaskPlaceholderEvidence
 
     init(
         sourceObjectID: String,
@@ -53,7 +54,8 @@ struct CanvasTaskPayload: Equatable, Sendable {
         unlockAt: Date? = nil,
         lockAt: Date? = nil,
         sourceURL: URL? = nil,
-        hasAssignmentOverrides: Bool = false
+        hasAssignmentOverrides: Bool = false,
+        placeholderEvidence: TaskPlaceholderEvidence = .incomplete
     ) {
         self.sourceObjectID = sourceObjectID
         self.courseSourceObjectID = courseSourceObjectID
@@ -64,6 +66,26 @@ struct CanvasTaskPayload: Equatable, Sendable {
         self.lockAt = lockAt
         self.sourceURL = sourceURL
         self.hasAssignmentOverrides = hasAssignmentOverrides
+        self.placeholderEvidence = placeholderEvidence
+    }
+}
+
+struct TaskPlaceholderEvidence: Equatable, Codable, Sendable {
+    let isComplete: Bool
+    let hasMeaningfulDescription: Bool
+    let hasAttachment: Bool
+    let hasLinkedActivity: Bool
+    let hasMeaningfulSubmission: Bool
+    let hasActionableRequirement: Bool
+
+    static let incomplete = Self(
+        isComplete: false, hasMeaningfulDescription: false, hasAttachment: false,
+        hasLinkedActivity: false, hasMeaningfulSubmission: false, hasActionableRequirement: false
+    )
+
+    func classifiesAsPlaceholder(dueAt: Date?) -> Bool {
+        isComplete && dueAt == nil && !hasMeaningfulDescription && !hasAttachment
+            && !hasLinkedActivity && !hasMeaningfulSubmission && !hasActionableRequirement
     }
 }
 

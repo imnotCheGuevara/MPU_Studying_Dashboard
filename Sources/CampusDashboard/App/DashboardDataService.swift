@@ -4,7 +4,11 @@ protocol DashboardDataReading: Sendable {
     func loadSnapshot() throws -> DashboardSnapshot
 }
 
-final class SQLiteDashboardDataReader: DashboardDataReading, @unchecked Sendable {
+protocol PlaceholderAssignmentManaging: Sendable {
+    func setPlaceholderAlwaysShow(taskID: UUID, alwaysShow: Bool) throws
+}
+
+final class SQLiteDashboardDataReader: DashboardDataReading, PlaceholderAssignmentManaging, @unchecked Sendable {
     private let database: SQLiteDatabase
     private let reconciliation: CourseReconciliationService
 
@@ -14,6 +18,7 @@ final class SQLiteDashboardDataReader: DashboardDataReading, @unchecked Sendable
     }
 
     func loadSnapshot() throws -> DashboardSnapshot {
+        try recomputePlaceholders()
         try reconciliation.reconcile()
         let projection = try loadCourses()
         let courses = projection.courses
@@ -25,6 +30,33 @@ final class SQLiteDashboardDataReader: DashboardDataReading, @unchecked Sendable
             tasks: try loadTasks(courses: coursesByID, aliases: projection.aliases),
             announcements: try loadAnnouncements(courses: coursesByID, aliases: projection.aliases),
             confirmations: []
+        )
+    }
+
+    func setPlaceholderAlwaysShow(taskID: UUID, alwaysShow: Bool) throws {
+        try database.execute(
+            "UPDATE learning_tasks SET placeholder_always_show=? WHERE id=? AND placeholder_state='placeholder'",
+            bindings: [.integer(alwaysShow ? 1 : 0), .text(taskID.uuidString)]
+        )
+    }
+
+    private func recomputePlaceholders() throws {
+        try database.execute(
+            """
+            UPDATE learning_tasks SET placeholder_state=CASE
+              WHEN placeholder_evidence_complete=1 AND official_due_at IS NULL
+               AND placeholder_has_description=0 AND placeholder_has_attachment=0
+               AND placeholder_has_linked_activity=0 AND placeholder_has_submission=0
+               AND placeholder_has_action=0 THEN 'placeholder' ELSE 'active' END
+            WHERE source_state='active'
+            """
+        )
+        try database.execute(
+            """
+            UPDATE placeholder_metrics SET current_suppressed=(SELECT COUNT(*) FROM learning_tasks
+              WHERE source_state='active' AND placeholder_state='placeholder'),
+              updated_at=CAST(strftime('%s','now') AS REAL) WHERE singleton_key=1
+            """
         )
     }
 
@@ -150,7 +182,7 @@ final class SQLiteDashboardDataReader: DashboardDataReading, @unchecked Sendable
             SELECT t.id, t.source_account_id, t.source_object_id, t.course_id, t.title,
                    t.official_type, t.normalized_type, t.official_due_at,
                    t.suggested_complete_at, t.suggestion_confirmed_at, t.official_due_is_all_day,
-                   t.source_url, sa.source_kind,
+                   t.source_url, t.placeholder_state, t.placeholder_always_show, sa.source_kind,
                    lus.is_complete, lus.priority
             FROM learning_tasks t
             JOIN source_accounts sa ON sa.id=t.source_account_id
@@ -177,7 +209,9 @@ final class SQLiteDashboardDataReader: DashboardDataReading, @unchecked Sendable
                 source: source, isLocallyComplete: row.int("is_complete") == 1,
                 localPriority: row.string("priority").flatMap(TaskPriority.init(rawValue:)) ?? .medium,
                 officialDueIsAllDay: row.int("official_due_is_all_day") == 1,
-                sourceURL: row.string("source_url")
+                sourceURL: row.string("source_url"),
+                isPlaceholder: row.string("placeholder_state") == "placeholder",
+                placeholderAlwaysShow: row.int("placeholder_always_show") == 1
             )
         }
     }

@@ -93,8 +93,11 @@ final class AIParsingCoordinator: @unchecked Sendable {
               raw_source_records.payload
             FROM raw_source_records
             JOIN source_accounts ON source_accounts.id=raw_source_records.source_account_id
+            JOIN learning_tasks ON learning_tasks.source_account_id=raw_source_records.source_account_id
+              AND learning_tasks.source_object_id=raw_source_records.source_object_id
             WHERE source_accounts.source_kind='Canvas'
               AND raw_source_records.object_type='learning_task'
+              AND learning_tasks.placeholder_state!='placeholder'
               AND NOT EXISTS (
                 SELECT 1 FROM ai_parse_results
                 WHERE ai_parse_results.raw_source_record_id=raw_source_records.id
@@ -293,6 +296,7 @@ final class AIParsingCoordinator: @unchecked Sendable {
             """,
             bindings: [.text(accountID), .text(sourceObjectID)]
         ).first, let targetID = target.string("id"), let title = target.string("title") else { return nil }
+        if objectType == "learning_task", target.string("placeholder_state") == "placeholder" { return nil }
         let officialType = target.string("official_type") ?? "announcement"
         let summary: String? = raw.fields["summary"] ?? nil
         let rawTitle: String? = raw.fields["title"] ?? nil
@@ -319,7 +323,7 @@ final class AIParsingCoordinator: @unchecked Sendable {
               COALESCE(normalized_type, official_type) AS item_type,
               official_due_at AS item_date
             FROM learning_tasks
-            WHERE course_id=? AND id<>? AND source_state='active'
+            WHERE course_id=? AND id<>? AND source_state='active' AND placeholder_state!='placeholder'
             UNION ALL
             SELECT id, 'announcement' AS object_type, title,
               'announcement' AS item_type, published_at AS item_date

@@ -129,6 +129,21 @@ struct NormalizedTask: Equatable, Encodable, Sendable {
     let opensAt: Date?
     let locksAt: Date?
     let sourceURL: String?
+    let placeholderEvidence: TaskPlaceholderEvidence
+
+    init(
+        sourceObjectID: String, courseSourceObjectID: String, title: String,
+        officialType: String, normalizedType: String, officialDueAt: Date?,
+        opensAt: Date?, locksAt: Date?, sourceURL: String?,
+        placeholderEvidence: TaskPlaceholderEvidence = .incomplete
+    ) {
+        self.sourceObjectID = sourceObjectID; self.courseSourceObjectID = courseSourceObjectID
+        self.title = title; self.officialType = officialType; self.normalizedType = normalizedType
+        self.officialDueAt = officialDueAt; self.opensAt = opensAt; self.locksAt = locksAt
+        self.sourceURL = sourceURL; self.placeholderEvidence = placeholderEvidence
+    }
+
+    var isPlaceholder: Bool { placeholderEvidence.classifiesAsPlaceholder(dueAt: officialDueAt) }
 }
 
 struct NormalizedAnnouncement: Equatable, Encodable, Sendable {

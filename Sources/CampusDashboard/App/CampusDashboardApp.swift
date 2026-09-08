@@ -204,8 +204,16 @@ struct RootView: View {
     var body: some View {
         NavigationSplitView {
             List(AppSection.allCases, selection: $model.selectedSection) { section in
-                Label(model.title(for: section), systemImage: section.systemImage)
-                    .tag(section)
+                HStack {
+                    Label(model.title(for: section), systemImage: section.systemImage)
+                    Spacer()
+                    if section == .confirmations, model.needsReviewCount > 0 {
+                        Text("\(model.needsReviewCount)").font(.caption.monospacedDigit())
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(.secondary.opacity(0.16), in: Capsule())
+                            .accessibilityLabel(model.text("Needs Review count"))
+                    }
+                }.tag(section)
             }
             .navigationTitle(model.text("Campus Dashboard"))
             .safeAreaInset(edge: .bottom) {

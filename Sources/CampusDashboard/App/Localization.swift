@@ -13,7 +13,7 @@ enum Localizer {
     // App-owned keys are centralized so localization coverage can be audited.
     static let simplifiedChinese: [String: String] = [
         "Campus Dashboard": "校园学习面板", "Today": "今日", "Schedule": "日程",
-        "Tasks": "任务", "Announcements": "公告", "AI Confirmation Queue": "AI 确认队列",
+        "Tasks": "任务", "Announcements": "公告", "AI Confirmation Queue": "AI 确认队列", "Needs Review": "待确认",
         "Settings": "设置", "Refresh": "刷新", "Refreshing": "刷新中", "Open Settings": "打开设置",
         "Development preview": "开发预览", "All records are synthetic": "所有记录均为虚构数据",
         "Preview state": "预览状态", "Sample data": "示例数据", "Empty": "空状态",
@@ -64,6 +64,11 @@ enum Localizer {
         "No tasks": "暂无任务", "No synchronized tasks match the current filter.": "没有符合当前筛选条件的已同步任务。",
         "Task type": "任务类型", "All types": "全部类型", "Official": "官方", "Suggested": "建议",
         "No official due date": "无官方截止时间", "Unknown course": "未知课程",
+        "Placeholder assignments": "暂存占位作业", "Placeholder": "占位作业",
+        "Always show in task list": "始终显示在任务列表中",
+        "Stored for source continuity; excluded from AI, Calendar, and notifications.": "为保持来源连续性而暂存；不会进入 AI、日历或通知。",
+        "Only unresolved actionable items and analyses needing correction appear here": "这里只显示未解决的可执行事项和需要修正的分析",
+        "Needs Review count": "待确认数量",
         "Assignment": "作业", "Quiz": "测验", "Reading": "阅读", "High": "高", "Medium": "中", "Low": "低",
         "Source content with local-only read state": "来源内容与仅保存在本地的已读状态",
         "No announcements": "暂无公告", "There are no synchronized announcements to show.": "没有可显示的已同步公告。",

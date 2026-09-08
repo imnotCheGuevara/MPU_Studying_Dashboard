@@ -77,7 +77,7 @@ enum CalendarPresentation {
                 relatedSourceURL: change.flatMap { signal in snapshot.announcements.first { $0.id == signal.announcementID }?.sourceURL }
             )
         }
-        let deadlines = snapshot.tasks.flatMap { task -> [CalendarEvent] in
+        let deadlines = snapshot.tasks.filter { !$0.isPlaceholder }.flatMap { task -> [CalendarEvent] in
             var result: [CalendarEvent] = []
             if let due = task.officialDueAt {
                 result.append(CalendarEvent(
@@ -145,7 +145,7 @@ enum CalendarPresentation {
     }
 
     static func undatedTasks(from snapshot: DashboardSnapshot) -> [LearningTask] {
-        snapshot.tasks.filter { $0.officialDueAt == nil && !($0.suggestedDateConfirmed && $0.suggestedCompleteAt != nil) }
+        snapshot.tasks.filter { !$0.isPlaceholder && $0.officialDueAt == nil && !($0.suggestedDateConfirmed && $0.suggestedCompleteAt != nil) }
     }
 
     private static func stableEventOrder(_ lhs: CalendarEvent, _ rhs: CalendarEvent) -> Bool {

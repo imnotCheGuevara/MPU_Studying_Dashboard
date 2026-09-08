@@ -48,7 +48,8 @@ struct CanvasSyncSourceReader: SyncSourceReader {
                 sourceObjectID: $0.sourceObjectID, courseSourceObjectID: $0.courseSourceObjectID,
                 title: $0.title, officialType: $0.officialType,
                 normalizedType: deterministicTaskType($0.officialType), officialDueAt: $0.officialDueAt,
-                opensAt: $0.unlockAt, locksAt: $0.lockAt, sourceURL: $0.sourceURL?.absoluteString
+                opensAt: $0.unlockAt, locksAt: $0.lockAt, sourceURL: $0.sourceURL?.absoluteString,
+                placeholderEvidence: $0.placeholderEvidence
             )
         }
         let announcements = try stableUnique(
@@ -77,7 +78,13 @@ struct CanvasSyncSourceReader: SyncSourceReader {
                 "officialType": value.officialType, "officialDueAt": rawDate(value.officialDueAt),
                 "unlockAt": rawDate(value.unlockAt), "lockAt": rawDate(value.lockAt),
                 "sourceURL": value.sourceURL?.absoluteString,
-                "hasAssignmentOverrides": String(value.hasAssignmentOverrides)
+                "hasAssignmentOverrides": String(value.hasAssignmentOverrides),
+                "placeholderEvidenceComplete": String(value.placeholderEvidence.isComplete),
+                "hasMeaningfulDescription": String(value.placeholderEvidence.hasMeaningfulDescription),
+                "hasAttachment": String(value.placeholderEvidence.hasAttachment),
+                "hasLinkedActivity": String(value.placeholderEvidence.hasLinkedActivity),
+                "hasMeaningfulSubmission": String(value.placeholderEvidence.hasMeaningfulSubmission),
+                "hasActionableRequirement": String(value.placeholderEvidence.hasActionableRequirement)
             ])
         }
         let rawAnnouncements = announcementValues.map { value in

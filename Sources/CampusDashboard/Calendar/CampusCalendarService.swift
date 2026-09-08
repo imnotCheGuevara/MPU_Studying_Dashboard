@@ -681,6 +681,9 @@ actor CampusCalendarService: CalendarService {
         ).first,
         let title = row.string("title"), let sourceState = row.string("source_state")
         else { throw CampusCalendarError.objectMissing }
+        guard row.string("placeholder_state") != "placeholder" else {
+            throw CampusCalendarError.ineligibleDate
+        }
 
         let officialDate = row.double("official_due_at").map(Date.init(timeIntervalSince1970:))
         let suggestedDate = row.double("suggested_complete_at").map(Date.init(timeIntervalSince1970:))

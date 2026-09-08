@@ -38,6 +38,18 @@ enum Stage12QAData {
                        .text("qa-assignment"), .text(courseID), .text("Official red assignment DDL"),
                        .text("assignment"), .real(date(2026, 9, 8, 17, 0).timeIntervalSince1970),
                        .text("Asia/Macau"), .integer(0), .text("active"), .real(1), .real(1)] )
+        try database.execute(
+            """
+            INSERT INTO learning_tasks
+              (id,source_account_id,source_object_id,course_id,title,official_type,official_due_at,
+               official_due_time_zone,official_due_is_all_day,source_state,first_seen_at,last_seen_at,
+               placeholder_state,placeholder_evidence_complete)
+            VALUES(?,?,?,?,?,?,NULL,?,0,'active',1,1,'placeholder',1)
+            """,
+            bindings: [.text("72000000-0000-0000-0000-000000000009"), .text(accountID),
+                       .text("qa-placeholder"), .text(courseID),
+                       .text("Synthetic empty assignment shell 占位作业"), .text("assignment"),
+                       .text("Asia/Macau")] )
 
         let persistence = AcademicSignalPersistence(database: database)
         let analysis = AcademicAnnouncementAnalysis(

@@ -6,7 +6,7 @@ struct ConfirmationQueueView: View {
     @State private var academicCorrectionTarget: AcademicCorrectionTarget?
 
     var body: some View {
-        PageContainer(title: model.text("AI Confirmation Queue"), subtitle: model.text("Review suggestions before any inferred value can be used downstream")) {
+        PageContainer(title: model.text("Needs Review"), subtitle: model.text("Only unresolved actionable items and analyses needing correction appear here")) {
             ScenarioContent(
                 model: model,
                 scenario: model.scenarioForEmpty(
@@ -53,43 +53,15 @@ struct ConfirmationQueueView: View {
 
     @ViewBuilder
     private var persistentContent: some View {
-        let signalAnalysisIDs = Set(model.academicSignals.map(\.analysisID))
-        let emptyOrFallback = model.academicAnalyses.filter { !signalAnalysisIDs.contains($0.id) }
-        if model.aiConfirmations.isEmpty && model.academicSignals.isEmpty && emptyOrFallback.isEmpty {
+        if model.aiConfirmations.isEmpty && model.needsReviewSignals.isEmpty && model.needsReviewAnalyses.isEmpty {
             ContentUnavailableView(
                 model.text("Nothing awaiting confirmation"), systemImage: "checkmark.circle",
                 description: Text(model.text("Deterministic sync and all non-AI features remain available."))
             )
         } else {
             ForEach(model.aiConfirmations) { item in persistentCard(item) }
-            ForEach(emptyOrFallback) { item in academicAnalysisCard(item) }
-            ForEach(model.academicSignals) { item in academicSignalCard(item) }
-        }
-        if !model.aiHistory.isEmpty {
-            Card {
-                Text(model.text("Recent decisions")).font(.headline)
-                ForEach(model.aiHistory) { item in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text(item.changeSummary.isEmpty ? item.rationale : item.changeSummary).lineLimit(1)
-                            Spacer()
-                            Badge(text: model.text(item.confirmationState.rawValue), color: .secondary)
-                            Button(model.text("Undo")) {
-                                Task { await model.undoAIResult(item.id) }
-                            }
-                        }
-                        let finalValues = [
-                            item.adoptedNormalizedTitle,
-                            item.adoptedType,
-                            item.adoptedDate.map { model.format($0) }
-                        ].compactMap { $0 }
-                        if !finalValues.isEmpty {
-                            Text(model.text("Final adopted value") + ": " + finalValues.joined(separator: " · "))
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
-                }
-            }
+            ForEach(model.needsReviewAnalyses) { item in academicAnalysisCard(item) }
+            ForEach(model.needsReviewSignals) { item in academicSignalCard(item) }
         }
     }
 

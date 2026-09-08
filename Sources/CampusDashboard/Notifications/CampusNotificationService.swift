@@ -209,6 +209,7 @@ final class CampusNotificationService: NotificationService, @unchecked Sendable 
             FROM learning_tasks LEFT JOIN courses ON courses.id = learning_tasks.course_id
             JOIN source_accounts sa ON sa.id=learning_tasks.source_account_id
             WHERE learning_tasks.id = ? AND learning_tasks.source_state = 'active'
+              AND learning_tasks.placeholder_state!='placeholder'
               AND LOWER(sa.source_kind) IN ('canvas','siweb')
             """, bindings: [.text(objectID)]
         ).first, try persistence.courseEnabled(row.string("course_id")) {
@@ -256,7 +257,9 @@ final class CampusNotificationService: NotificationService, @unchecked Sendable 
             SELECT learning_tasks.*, courses.name AS course_name FROM learning_tasks
             LEFT JOIN courses ON courses.id = learning_tasks.course_id
             JOIN source_accounts sa ON sa.id=learning_tasks.source_account_id
-            WHERE learning_tasks.source_state = 'active' AND LOWER(sa.source_kind) IN ('canvas','siweb')
+            WHERE learning_tasks.source_state = 'active'
+              AND learning_tasks.placeholder_state!='placeholder'
+              AND LOWER(sa.source_kind) IN ('canvas','siweb')
             """
         )
         for row in rows where try persistence.courseEnabled(row.string("course_id")) {
