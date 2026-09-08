@@ -4,7 +4,7 @@ Updated: 2026-09-08 Asia/Macau.
 
 ## Active state
 
-- **Stage 15S: PARTIAL.** Repairs are merged at `8a9e8b7`; the main conversation passed 63 focused tests, relaunched the signed app, verified schema 14, confirmed source `25573` is pending/no-target, opened its correction UI, and observed no standalone Friday entry. Its stored legacy date remains wrong, so a consented reprocess or user correction plus exact preview/confirm/undo remains mandatory.
+- **Stage 15S: PARTIAL.** Repairs are merged at `8a9e8b7`, with additional uncommitted Announcements action-path, correction-feedback, and make-up-event repairs. The correction UI now has an independent `makeup_class` category: selecting a course attributes the new event but does not try to match an existing SIweb meeting. It stays pending until a read-only preview and explicit confirmation, then creates an app-owned three-hour event. Existing-class cancellation remains exact-meeting-only. Calendar preview no longer requires prior Calendar permission/configuration and Announcements displays a visible failure instead of silently doing nothing. The main conversation passed all 244 tests and relaunched the rebuilt signed app. A user-confirmed real cancellation preview/confirm/undo is still mandatory.
 - **Stage 15R: PARTIAL.** SIweb in-app authorization now closes correctly and immediately runs exactly one isolated successful SIweb sync (98 records); Canvas remains ready and the former 35-second loop did not recur. Calendar access is restored to the dedicated iCloud calendar. Final acceptance is blocked by Stage 15S and then a user-confirmed real Calendar lifecycle.
 - **Stage 15: PARTIAL.** Its technical work is preserved: 213 tests passed, the synthetic classifier fixture improved from 17/20 to 20/20, the signed bundle built/launched, and live Canvas read-only smoke passed. It is not accepted because setup/recovery and mandatory real signed-app lifecycle checks remain incomplete.
 - **Stage 10: PAUSED at 0/7.** Resume only after Stage 15R passes and the main conversation freezes the new candidate.
@@ -14,7 +14,7 @@ Updated: 2026-09-08 Asia/Macau.
 ## Git
 
 - Branch `main`; Stage 15S implementation is merged at `8a9e8b7` on top of authorization commit `5ad3a0b`.
-- Main-checkout rebuilt candidate is `0.3.0 (4)`, executable SHA-256 `4e8cd14e636688430476d6d18db36c00060ce00b8621dba97b9697b02d51599e`; strict signature verification passed. Do not freeze it until the remaining real gates pass.
+- Main-checkout rebuilt candidate is `0.3.0 (4)`, executable SHA-256 `c28e70dc4bb1050a2d6aab528fd33d75637a63d8fe3e1121c653b5bb7608ff88`, CDHash `9bbdbaf4f8cfbc01e1e73f997540942aa96468af`; strict signature verification passed. Do not freeze it until the remaining real gates pass.
 
 ## Stable boundaries
 
@@ -32,6 +32,8 @@ Swift/SwiftUI macOS app with SQLite, Keychain, read-only Canvas/SIweb connectors
 Stage 15R added in-app setup/recovery, audited Canvas↔SIweb mapping, centralized AI correction, exact Calendar preview/confirmation/undo, exam/deadline markers, aggregate metrics, synthetic-data filtering, and a disabled Outlook entry.
 
 Stage 15S now rejects provider dates unless the affected meeting role, enrolled SIweb section, proposed meeting identity, persisted target, and current unique SIweb meeting agree. Ambiguous, wrong-section, make-up, response-deadline, stale, or targetless schedule changes return to pending review and are excluded from Schedule, Calendar, and notifications. Manual correction saves only a pending proposal; a fresh exact preview and separate confirmation are required.
+
+Manual correction may instead classify a true added session as `makeup_class`. That category is deliberately independent of SIweb meeting targeting: the selected course supplies attribution only, preview is read-only, and explicit confirmation creates a standalone app-owned event. It never reuses the exact-meeting cancellation path.
 
 ## Stage 15S remaining gate
 

@@ -117,7 +117,9 @@ actor CampusCalendarService: CalendarService {
 
     /// Read-only preview for the explicit review gate. It never touches EventKit.
     func previewAcademicSignal(signalID: UUID) async throws -> CalendarChangePreview {
-        let identity = try await requireValidIdentity()
+        // Preview remains available before Calendar permission/configuration so
+        // the user can review the exact operation without granting access.
+        let calendarTitle = try persistence.identity()?.calendarTitle ?? "Campus Dashboard"
         guard let row = try database.query(
             """
             SELECT s.*,a.title AS announcement_title,c.name AS course_name,c.code AS course_code,
@@ -161,6 +163,7 @@ actor CampusCalendarService: CalendarService {
             && ["cancel", "取消", "停课"].contains(where: words.contains)
         let semantic: AcademicEventSemantic = switch category {
         case .courseScheduleChange: isCancellation ? .courseCancellation : .makeupOrChange
+        case .makeupClass: .makeupOrChange
         case .assignmentDeadline: .assignmentDeadline
         case .examTime: .exam
         case .other: .assignmentDeadline
@@ -180,11 +183,12 @@ actor CampusCalendarService: CalendarService {
         if let existingMeetingStart, let existingMeetingEnd {
             duration = existingMeetingEnd.timeIntervalSince(existingMeetingStart)
         } else {
-            duration = row.int("adopted_is_all_day") == 1 ? 86_400 : 1_800
+            duration = row.int("adopted_is_all_day") == 1
+                ? 86_400 : (category == .makeupClass ? 10_800 : 1_800)
         }
         let marker = switch semantic {
         case .courseCancellation: "[CANCELLED]"
-        case .makeupOrChange: "[CHANGED]"
+        case .makeupOrChange: category == .makeupClass ? "[MAKEUP]" : "[CHANGED]"
         case .assignmentDeadline: "[DEADLINE]"
         case .exam: "[EXAM]"
         }
@@ -194,7 +198,7 @@ actor CampusCalendarService: CalendarService {
             id: UUID(), signalID: signalID, targetMeetingID: targetMeetingID,
             signalUpdatedAt: Date(timeIntervalSince1970: row.double("updated_at") ?? 0),
             operation: operation,
-            calendarTitle: identity.calendarTitle,
+            calendarTitle: calendarTitle,
             courseTitle: course.isEmpty ? "Unassigned course" : course,
             semantic: semantic, startsAt: start, endsAt: start?.addingTimeInterval(duration),
             isAllDay: category == .courseScheduleChange
@@ -202,7 +206,9 @@ actor CampusCalendarService: CalendarService {
                 : row.int("adopted_is_all_day").map { $0 == 1 }
                     ?? (row.int("is_all_day") == 1),
             affectedBoundEvent: binding == nil
-                ? "Exact SIweb meeting (not yet bound)"
+                ? (category == .makeupClass
+                    ? "New app-owned make-up event"
+                    : "Exact SIweb meeting (not yet bound)")
                 : "Exact app-owned SIweb meeting event",
             undoEffect: binding == nil
                 ? "Undo removes the app-owned event created from this confirmation."
@@ -648,13 +654,19 @@ actor CampusCalendarService: CalendarService {
         guard category != AcademicSignalCategory.courseScheduleChange.rawValue else {
             throw CampusCalendarError.unconfirmedInferredDate
         }
-        let marker = category == "exam_time" ? "[EXAM]" : "[DEADLINE]"
+        let marker = switch AcademicSignalCategory(rawValue: category) {
+        case .examTime: "[EXAM]"
+        case .makeupClass: "[MAKEUP]"
+        default: "[DEADLINE]"
+        }
         let rawTitle = row.string("announcement_title") ?? row.string("adopted_key_requirement") ?? "Academic update"
         let code = row.string("course_code") ?? ""
         let title = [marker, code, rawTitle].filter { !$0.isEmpty }.joined(separator: " · ")
         let allDay = row.int("adopted_is_all_day") == 1
+        let duration: TimeInterval = allDay ? 86_400
+            : (category == AcademicSignalCategory.makeupClass.rawValue ? 10_800 : 1_800)
         return EventPayload(draft: .init(title: title, startsAt: start,
-            endsAt: start.addingTimeInterval(allDay ? 86_400 : 1_800), isAllDay: allDay,
+            endsAt: start.addingTimeInterval(duration), isAllDay: allDay,
             location: nil, sourceURL: row.string("source_url").flatMap(URL.init(string:)), ownershipMarker: ""),
             isCancelled: false)
     }

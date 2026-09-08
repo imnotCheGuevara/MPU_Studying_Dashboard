@@ -523,28 +523,46 @@ final class DashboardModel: ObservableObject {
         catch { aiMessage = "The academic-signal decision could not be saved." }
     }
 
+    @discardableResult
     func correctAcademicSignal(_ id: UUID, category: AcademicSignalCategory,
                                keyRequirement: String, date: Date?, isAllDay: Bool,
-                               timeZoneIdentifier: String?, courseID: UUID?) {
+                               timeZoneIdentifier: String?, courseID: UUID?) -> Bool {
+        guard let academicSignalCoordinator else {
+            aiMessage = "The academic-signal correction could not be saved."
+            return false
+        }
         do {
-            try academicSignalCoordinator?.correct(id, correction: AcademicSignalCorrection(
+            try academicSignalCoordinator.correct(id, correction: AcademicSignalCorrection(
                 category: category, keyRequirement: keyRequirement, inferredDate: date,
                 isAllDay: isAllDay, timeZoneIdentifier: timeZoneIdentifier, courseID: courseID
             ))
             recordAcademicHandling(id: id, action: "correct")
             refreshAIConfiguration()
-        } catch { aiMessage = "The academic-signal correction could not be saved." }
+            return true
+        } catch {
+            aiMessage = "The academic-signal correction could not be saved."
+            return false
+        }
     }
 
+    @discardableResult
     func correctAcademicAnalysis(_ id: UUID, category: AcademicSignalCategory,
                                  keyRequirement: String, date: Date?, isAllDay: Bool,
-                                 timeZoneIdentifier: String?, courseID: UUID?) {
+                                 timeZoneIdentifier: String?, courseID: UUID?) -> Bool {
+        guard let academicSignalCoordinator else {
+            aiMessage = "The analysis-level correction could not be saved."
+            return false
+        }
         do {
-            try academicSignalCoordinator?.correctAnalysis(id, correction: .init(
+            try academicSignalCoordinator.correctAnalysis(id, correction: .init(
                 category: category, keyRequirement: keyRequirement, inferredDate: date,
                 isAllDay: isAllDay, timeZoneIdentifier: timeZoneIdentifier, courseID: courseID))
             refreshAIConfiguration()
-        } catch { aiMessage = "The analysis-level correction could not be saved." }
+            return true
+        } catch {
+            aiMessage = "The analysis-level correction could not be saved."
+            return false
+        }
     }
 
     func undoAcademicSignal(_ id: UUID) {
@@ -576,13 +594,19 @@ final class DashboardModel: ObservableObject {
         if academicReviewStartedAt[id] == nil { academicReviewStartedAt[id] = nowProvider() }
     }
 
-    func previewAcademicSignal(_ id: UUID) async {
+    @discardableResult
+    func previewAcademicSignal(_ id: UUID) async -> Bool {
         guard let calendarService else {
             aiMessage = "Calendar preview is required before a course schedule change can be confirmed."
-            return
+            return false
         }
-        do { calendarChangePreview = try await calendarService.previewAcademicSignal(signalID: id) }
-        catch { aiMessage = "Calendar preview is unavailable. No event was changed; correct or ignore this item." }
+        do {
+            calendarChangePreview = try await calendarService.previewAcademicSignal(signalID: id)
+            return true
+        } catch {
+            aiMessage = "Calendar preview is unavailable. No event was changed; correct or ignore this item."
+            return false
+        }
     }
 
     func confirmCalendarChangePreview() {

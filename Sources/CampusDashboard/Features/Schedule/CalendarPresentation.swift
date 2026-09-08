@@ -113,13 +113,16 @@ enum CalendarPresentation {
             switch category {
             case .examTime: kind = .confirmedExam
             case .assignmentDeadline: kind = .confirmedInferredDeadline
+            case .makeupClass: kind = .confirmedScheduleChange
             case .courseScheduleChange: kind = .confirmedScheduleChange
             case .other: return nil
             }
             return CalendarEvent(
                 id: "academic-signal:\(signal.id.uuidString)", objectID: signal.id,
-                courseID: announcement.courseID, title: signal.keyRequirement,
-                start: date, end: date.addingTimeInterval(allDay ? 86_400 : 1_800),
+                courseID: announcement.courseID,
+                title: signal.adoptedKeyRequirement ?? signal.keyRequirement,
+                start: date, end: date.addingTimeInterval(allDay ? 86_400
+                    : (category == .makeupClass ? 10_800 : 1_800)),
                 isAllDay: allDay, kind: kind,
                 source: .canvas, location: "", isCancelled: false,
                 sourceURL: announcement.sourceURL

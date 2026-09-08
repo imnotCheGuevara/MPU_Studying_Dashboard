@@ -37,7 +37,9 @@ struct AcademicSignalTests {
             #expect(report.metrics[category]?.precision == 1)
             #expect(report.metrics[category]?.recall == 1)
             #expect(report.metrics[category]?.f1 == 1)
-            #expect(report.primaryConfusion[category]?[category] != nil)
+            if category != .makeupClass {
+                #expect(report.primaryConfusion[category]?[category] != nil)
+            }
         }
     }
 
@@ -207,6 +209,8 @@ struct AcademicSignalTests {
 
             let corrected = try #require(coordinator.activeSignals().first)
             #expect(corrected.confirmationState == .pending)
+            #expect(corrected.adoptedKeyRequirement == "Do not attend this meeting.")
+            #expect(corrected.adoptedDate == Date(timeIntervalSince1970: 2_000_000_000))
             #expect(corrected.targetMeetingID == meetingID)
             #expect(corrected.audienceResolution == .resolved)
             #expect(try database.scalarInt("SELECT COUNT(*) FROM outbox_work") == 0)
@@ -583,6 +587,62 @@ struct AcademicSignalTests {
         }
     }
 
+    @Test("A corrected make-up class stays pending until preview confirmation and becomes a standalone event")
+    func makeupClassRequiresPreviewConfirmation() async throws {
+        try await withDatabase { database in
+            let date = Date(timeIntervalSince1970: 2_000_000_000)
+            try enableProvider(database)
+            let provider = AcademicCapturingProvider(data: try encoded(
+                .examTime, [signal(.examTime, date: date)]
+            ))
+            let coordinator = AcademicSignalCoordinator(database: database, provider: provider)
+            let seed = try seedAnnouncement(
+                database, hash: "makeup", title: "Make-up class",
+                summary: "A new class is scheduled outside the regular SIweb meetings."
+            )
+            _ = await coordinator.process(
+                rawID: seed.rawID, announcementID: seed.announcementID,
+                accountID: seed.accountID, sourceID: "ann-1",
+                contentHash: "makeup", input: seed.input
+            )
+            let original = try #require(coordinator.activeSignals().first)
+            try coordinator.correct(original.id, correction: .init(
+                category: .makeupClass, keyRequirement: "Attend make-up class",
+                inferredDate: date, isAllDay: false,
+                timeZoneIdentifier: "Asia/Macau", courseID: seed.courseID
+            ))
+            let pending = try #require(coordinator.activeSignals().first)
+            #expect(pending.confirmationState == .pending)
+            #expect(pending.targetMeetingID == nil)
+            #expect(pending.audienceResolution == .noTarget)
+            #expect(try database.scalarInt("SELECT COUNT(*) AS value FROM outbox_work") == 0)
+
+            let announcement = Announcement(
+                id: seed.announcementID, sourceObjectID: "ann-1", courseID: seed.courseID,
+                title: "Make-up class", summary: "Synthetic", publishedAt: Date(),
+                source: .canvas, isLocallyRead: false, sourceURL: nil
+            )
+            let snapshot = DashboardSnapshot(
+                sourceHealth: [], courses: [], meetings: [], tasks: [],
+                announcements: [announcement], confirmations: []
+            )
+            #expect(CalendarPresentation.events(from: snapshot, academicSignals: [pending]).isEmpty)
+
+            try coordinator.confirm(pending.id)
+            let confirmed = try #require(coordinator.activeSignals().first)
+            #expect(confirmed.confirmationState == .confirmed)
+            #expect(confirmed.adoptedCategory == .makeupClass)
+            #expect(confirmed.adoptedDate == date)
+            #expect(try database.scalarInt("SELECT COUNT(*) AS value FROM outbox_work") == 1)
+            let event = try #require(CalendarPresentation.events(
+                from: snapshot, academicSignals: [confirmed]
+            ).first)
+            #expect(event.kind == .confirmedScheduleChange)
+            #expect(event.title == "Attend make-up class")
+            #expect(event.end.timeIntervalSince(event.start) == 10_800)
+        }
+    }
+
     @Test("Confirm, correct, and reject are append-only audited decisions")
     func auditedDecisions() async throws {
         try await withDatabase { database in
@@ -619,12 +679,16 @@ struct AcademicSignalTests {
     @Test("Stage 12 UI strings are bilingual and source text has no translation path")
     func bilingualUIAndSourcePreservation() {
         let keys = [
-            "Academic signal category", "All categories", "Course schedule change",
+            "Academic signal category", "All categories", "Course schedule change", "Make-up class",
             "Assignment deadline", "Exam or Quiz time", "AI labels are local suggestions, not Canvas facts.",
             "Deterministic analysis", "DeepSeek analysis", "Provider unavailable; deterministic result retained",
             "AI disabled; deterministic result retained", "Reprocess", "Evidence", "Key requirement",
             "Reason", "Conflicts", "Correct academic signal", "Correct analysis…",
             "Section needs review", "Confirmed exam", "Open change announcement", "Reset",
+            "Preview Calendar change…", "Correct this item to an exact SIweb meeting before previewing it.",
+            "Correction saved locally, but the selected date does not match exactly one SIweb meeting. A new makeup class cannot be added to Schedule or Calendar from this control.",
+            "Saving a make-up class does not authorize Calendar. Preview the new three-hour event, then confirm.",
+            "Calendar preview could not be opened. No event was changed.",
             "AI consent or configuration", "API key unavailable in Keychain",
             "Temporary connection or service issue", "Provider authorization rejected",
             "Provider balance unavailable", "Provider rate limit", "Local AI budget reached",
@@ -638,6 +702,19 @@ struct AcademicSignalTests {
         let sourceBody = "Teacher-authored 原文 body reste inchangé"
         #expect(Localizer.text(sourceTitle, language: .simplifiedChinese) == sourceTitle)
         #expect(Localizer.text(sourceBody, language: .english) == sourceBody)
+    }
+
+    @Test("Announcements use the same preview gate as the confirmation queue")
+    func announcementPreviewGateContract() {
+        let source = try! String(contentsOfFile:
+            "Sources/CampusDashboard/Features/Announcements/AnnouncementsView.swift", encoding: .utf8)
+        #expect(source.contains(".sheet(item: $model.calendarChangePreview)"))
+        #expect(source.contains("model.previewAcademicSignal(signal.id)"))
+        #expect(source.contains("signal.audienceResolution != .resolved"))
+        #expect(source.contains("signal.adoptedKeyRequirement ?? signal.keyRequirement"))
+        #expect(source.contains("signal.adoptedDate ?? signal.inferredDate"))
+        #expect(source.contains("if saved {"))
+        #expect(!source.contains("Button(model.text(\"Confirm locally\")) { model.confirmAcademicSignal(signal.id) }"))
     }
 
     @Test("Official assignment and Quiz deadlines retain red plus explicit symbol semantics")

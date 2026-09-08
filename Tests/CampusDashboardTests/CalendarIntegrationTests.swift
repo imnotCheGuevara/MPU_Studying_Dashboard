@@ -489,6 +489,29 @@ struct CalendarIntegrationTests {
         }
     }
 
+    @Test("Read-only make-up preview opens before Calendar is configured")
+    func makeupPreviewDoesNotRequireCalendarAccess() async throws {
+        try await withDatabase { database in
+            let store = FakeCalendarEventStore(status: .notDetermined, sources: [])
+            let service = CampusCalendarService(database: database, store: store)
+            let signalID = UUID(uuidString: "30000000-0000-0000-0000-000000000002")!
+            try insertAcademicExam(database, signalID: signalID)
+            try database.execute(
+                "UPDATE academic_signals SET category='makeup_class',adopted_category='makeup_class',adopted_date=20000,adopted_is_all_day=0 WHERE id=?",
+                bindings: [.text(signalID.uuidString)]
+            )
+
+            let preview = try await service.previewAcademicSignal(signalID: signalID)
+
+            #expect(preview.operation == .create)
+            #expect(preview.semantic == .makeupOrChange)
+            #expect(preview.displayMarker == "[MAKEUP]")
+            #expect(preview.calendarTitle == "Campus Dashboard")
+            #expect(preview.targetMeetingID == nil)
+            #expect(preview.endsAt?.timeIntervalSince(preview.startsAt!) == 10_800)
+        }
+    }
+
     @Test("Schedule cancellation preview is read-only and only changes the exact SIweb meeting")
     func scheduleCancellationExactPreviewGate() async throws {
         try await withDatabase { database in

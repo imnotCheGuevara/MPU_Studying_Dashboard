@@ -2,6 +2,7 @@ import Foundation
 
 enum AcademicSignalCategory: String, CaseIterable, Codable, Hashable, Identifiable, Sendable {
     case courseScheduleChange = "course_schedule_change"
+    case makeupClass = "makeup_class"
     case assignmentDeadline = "assignment_deadline"
     case examTime = "exam_time"
     case other

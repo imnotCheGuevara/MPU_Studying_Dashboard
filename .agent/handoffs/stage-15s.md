@@ -2,6 +2,29 @@
 
 Status: `PARTIAL`
 
+## Main-conversation correction-visibility repair — 2026-09-08
+
+- Root cause: persistence correctly stored a user repair in the adopted fields, but both Announcements and the AI confirmation queue continued rendering the original provider key requirement and date. The correction therefore appeared to have no effect. The sheet also dismissed unconditionally even if the coordinator was unavailable or saving threw an error.
+- Both views now render adopted category, requirement, date, and all-day state when present. Dated corrected non-schedule items also use the adopted date when choosing the Calendar-preview path.
+- Dashboard correction methods now fail closed when the coordinator is unavailable and return a success result. The correction sheet dismisses only after success and otherwise remains open with a bilingual inline error.
+- A saved schedule correction that does not match exactly one existing SIweb meeting now receives an explicit bilingual explanation. It remains excluded from Schedule and Calendar as required by Stage 15S; a newly announced makeup class is not misrepresented as a mutation of a regular SIweb meeting.
+- `./scripts/test.sh --filter AcademicSignalTests` — PASS, 22 tests. `./scripts/test.sh` — PASS, 242 tests in 20 suites. Production build, app/Keychain smoke, strict signature verification, and `git diff --check` — PASS.
+- Exact main-checkout app was relaunched. A subsequent read-only Computer Use capture failed in macOS ScreenCaptureKit, so no post-navigation screenshot claim is made. No Calendar confirmation or mutation was attempted.
+- Rebuilt candidate: `0.3.0 (4)`, executable SHA-256 `bee0411fb122ff7f62ffd5c6b6ff52a0613755945fc9c020460df3b099d752b7`, CDHash `77db3e37052bf3a555f10d2c6773fd90f91344c6`.
+
+## Main-conversation Announcements action-path repair — 2026-09-08
+
+- Root cause: the Announcements page still called `confirmAcademicSignal` directly for every pending item. Stage 15S correctly rejects that path for course schedule changes and inferred dates, so the enabled-looking control appeared to do nothing. The AI confirmation queue already used the required read-only preview and exact-target gate.
+- The Announcements page now shares the same behavior: dated or schedule-changing signals open `previewAcademicSignal`; the existing bilingual Calendar preview sheet is presented; only undated, non-schedule items retain local-only confirmation.
+- A schedule change is enabled only after its audience resolves to one exact SIweb meeting. Unresolved items now show a bilingual explanation directing the user to correct the item first instead of presenting a silently ineffective action.
+- Signed-app inspection showed the rebuilt Announcements page with enabled `Preview Calendar change…` for the resolved September 7 item and disabled preview plus the new explanation for unresolved items. macOS Accessibility did not complete the attempted automated button activation, so no claim is made that the real preview sheet opened in that walkthrough. No Calendar confirmation or mutation was attempted.
+- `./scripts/test.sh --filter AcademicSignalTests` — PASS, 22 tests.
+- `./scripts/test.sh` — PASS, 242 tests in 20 suites.
+- `./scripts/build-app.sh`, `./scripts/verify-app.sh`, strict `codesign` verification, and `git diff --check` — PASS.
+- Rebuilt candidate: `0.3.0 (4)`, executable SHA-256 `eebad01493e587c7bd34cb0624a920b6177162e7ce37b6f0b88ec0d53a48ac25`, CDHash `70da260069ad533c2756b67805e7771033a9d82b`.
+- Changed by this repair: `AnnouncementsView.swift`, `ConfirmationQueueView.swift`, `Localization.swift`, and `AcademicSignalTests.swift`.
+- Stage remains `PARTIAL`: source `25573` still needs exact correction/reprocess, a real preview, and fresh user approval immediately before confirm/undo in the dedicated Campus Dashboard calendar.
+
 ## Main-conversation real verification — 2026-09-08
 
 - The main-checkout signed app was fully quit and relaunched from `dist/Campus Dashboard.app`; macOS no longer reused the prior process.
@@ -87,3 +110,17 @@ The stage remains `PARTIAL` because the real signed-app source walkthroughs did 
 - Before any real Calendar mutation, obtain fresh action-time confirmation and constrain the walkthrough to the existing dedicated Campus Dashboard calendar and the single previewed SIweb meeting.
 
 No central control file was edited, no commit was created, and no future stage was started.
+
+## Main-conversation independent make-up and silent-preview repair — 2026-09-08
+
+- Added a separate `makeup_class` correction category. Choosing a course now supplies course attribution only; it does not attempt to bind the new session to an existing SIweb meeting. Saving remains pending, read-only preview shows a new app-owned make-up event, and only the preview sheet's explicit confirmation makes it Calendar/Schedule eligible.
+- Kept cancellation/change behavior exact-meeting-only. A `course_schedule_change` must still resolve to one current SIweb meeting before preview or mutation.
+- Fixed the apparent no-op when previewing an exact cancellation: preview no longer requests Calendar permission or a configured EventKit identity because it is a DB-only read. Announcements now presents the preview sheet and shows a bilingual visible error if preview construction really fails.
+- Confirmation now preserves adopted category/date/all-day values from a saved correction. The Announcements filter and Schedule presentation use the adopted category, so corrected make-up events are not hidden under the provider's old classification.
+- Standalone timed make-up events default to three hours and use the `[MAKEUP]` marker. No personal/shared Calendar is inspected or changed by preview.
+- Added regressions proving that make-up correction creates no outbox/Schedule item before confirmation, preserves corrected values after confirmation, creates a three-hour standalone event afterward, and can be previewed while Calendar access is `notDetermined` and no dedicated calendar is configured.
+- `./scripts/test.sh --filter 'AcademicSignalTests|CalendarIntegrationTests.makeupPreviewDoesNotRequireCalendarAccess'` — PASS, 24 tests in 2 suites.
+- `./scripts/test.sh` — PASS, 244 tests in 20 suites.
+- `./scripts/build-app.sh`, `./scripts/verify-app.sh`, strict `codesign` verification, `git diff --check`, targeted credential/private-network scan, and Outlook-path diff scan — PASS.
+- Rebuilt and relaunched candidate: `0.3.0 (4)`, executable SHA-256 `c28e70dc4bb1050a2d6aab528fd33d75637a63d8fe3e1121c653b5bb7608ff88`, CDHash `9bbdbaf4f8cfbc01e1e73f997540942aa96468af`.
+- Stage remains `PARTIAL`: the user still needs to inspect a real cancellation preview and provide fresh action-time approval immediately before any confirm/undo in the dedicated Campus Dashboard calendar. No real Calendar mutation was performed in this repair.

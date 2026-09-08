@@ -128,6 +128,7 @@ struct ConfirmationQueueView: View {
 
     private func academicSignalCard(_ item: AcademicSignalRecord) -> some View {
         let effectiveCategory = item.adoptedCategory ?? item.category
+        let effectiveDate = item.adoptedDate ?? item.inferredDate
         let unsafeSchedule = effectiveCategory == .courseScheduleChange
             && (item.targetMeetingID == nil || item.audienceResolution != .resolved)
         return Card {
@@ -149,8 +150,8 @@ struct ConfirmationQueueView: View {
                     Link(model.text("Open original source"), destination: url)
                 }
                 labeled("Evidence", item.evidence)
-                labeled("Key requirement", item.keyRequirement)
-                if let date = item.inferredDate {
+                labeled("Key requirement", item.adoptedKeyRequirement ?? item.keyRequirement)
+                if let date = effectiveDate {
                     labeled("Inferred date (not yet authorized)", model.format(date))
                 }
                 if let section = item.affectedSection { labeled("Affected section", section) }
@@ -162,8 +163,8 @@ struct ConfirmationQueueView: View {
                     if item.confirmationState == .pending {
                         Button(model.text(effectiveCategory == .courseScheduleChange
                             ? "Preview Calendar change…"
-                            : (item.inferredDate == nil ? "Confirm locally" : "Preview Calendar change…"))) {
-                            if effectiveCategory != .courseScheduleChange && item.inferredDate == nil {
+                            : (effectiveDate == nil ? "Confirm locally" : "Preview Calendar change…"))) {
+                            if effectiveCategory != .courseScheduleChange && effectiveDate == nil {
                                 model.confirmAcademicSignal(item.id)
                             }
                             else { Task { await model.previewAcademicSignal(item.id) } }
@@ -189,6 +190,12 @@ struct ConfirmationQueueView: View {
                         }
                     }
                 }
+                if unsafeSchedule {
+                    Text(model.text(item.decisionOrigin == .userCorrection
+                        ? "Correction saved locally, but the selected date does not match exactly one SIweb meeting. A new makeup class cannot be added to Schedule or Calendar from this control."
+                        : "Correct this item to an exact SIweb meeting before previewing it."))
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
             }
             .accessibilityElement(children: .contain)
             .onAppear { model.beginAcademicReview(item.id) }
@@ -198,6 +205,7 @@ struct ConfirmationQueueView: View {
     private func categoryLabel(_ value: AcademicSignalCategory) -> String {
         switch value {
         case .courseScheduleChange: "Course schedule change"
+        case .makeupClass: "Make-up class"
         case .assignmentDeadline: "Assignment deadline"
         case .examTime: "Exam or Quiz time"
         case .other: "Other"
@@ -272,7 +280,7 @@ struct ConfirmationQueueView: View {
     }
 }
 
-private struct CalendarChangePreviewSheet: View {
+struct CalendarChangePreviewSheet: View {
     @ObservedObject var model: DashboardModel
     let preview: CalendarChangePreview
     @Environment(\.dismiss) private var dismiss

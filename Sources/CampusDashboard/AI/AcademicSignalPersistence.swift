@@ -96,7 +96,9 @@ final class AcademicSignalPersistence: @unchecked Sendable {
         let next: AcademicSignalConfirmationState
         switch action {
         case "confirm": next = .confirmed
-        case "correct": next = correction?.category == .courseScheduleChange ? .pending : .corrected
+        case "correct":
+            next = correction.map { [.courseScheduleChange, .makeupClass].contains($0.category) } == true
+                ? .pending : .corrected
         case "reject": next = .rejected
         case "undo": next = .undone
         case "reset": next = value.inferredDate == nil ? .notRequired : .pending
@@ -111,15 +113,16 @@ final class AcademicSignalPersistence: @unchecked Sendable {
               (action != "reset" || value.decisionOrigin == .userCorrection) else {
             throw AIParsingError.invalidTransition
         }
-        let adoptedCategory = correction?.category ?? value.category
-        let adoptedDate = correction?.inferredDate ?? value.inferredDate
-        let adoptedAllDay = correction?.isAllDay ?? value.isAllDay
+        let adoptedCategory = correction?.category ?? value.adoptedCategory ?? value.category
+        let adoptedDate = correction?.inferredDate ?? value.adoptedDate ?? value.inferredDate
+        let adoptedAllDay = correction?.isAllDay ?? value.adoptedIsAllDay ?? value.isAllDay
         let correctedCourseID = correction?.courseID ?? value.courseID
-        let correctedTarget = correction == nil ? value.targetMeetingID
+        let correctedTarget = adoptedCategory == .courseScheduleChange
+            ? (correction == nil ? value.targetMeetingID
             : try AcademicScheduleTargetResolver.resolveCorrection(
                 database: database, courseID: correctedCourseID, date: adoptedDate,
                 isAllDay: adoptedAllDay
-            )
+            )) : nil
         let audience: AcademicAudienceResolution = adoptedCategory == .courseScheduleChange
             ? (correctedTarget == nil ? .pendingReview : .resolved) : .noTarget
         let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
@@ -160,6 +163,7 @@ final class AcademicSignalPersistence: @unchecked Sendable {
                 ]
             )
             let calendarSafe = adoptedCategory != .courseScheduleChange && adoptedDate != nil
+                && (adoptedCategory != .makeupClass || [.confirmed, .corrected].contains(next))
             if calendarSafe || (value.category != .courseScheduleChange && value.targetMeetingID != nil) {
                 try enqueueCalendarDecision(signalID: id, eligible: calendarSafe && ![.rejected, .undone].contains(next) && action != "reset", now: now, action: action)
             }
@@ -240,10 +244,11 @@ final class AcademicSignalPersistence: @unchecked Sendable {
             "SELECT course_id,title FROM announcements WHERE id=?", bindings: [.text(announcementID.uuidString)]
         ).first
         let courseID = correction.courseID ?? defaultCourse?.string("course_id").flatMap(UUID.init(uuidString:))
-        let targetMeetingID = try AcademicScheduleTargetResolver.resolveCorrection(
-            database: database, courseID: courseID, date: correction.inferredDate,
-            isAllDay: correction.isAllDay
-        )
+        let targetMeetingID = correction.category == .courseScheduleChange
+            ? try AcademicScheduleTargetResolver.resolveCorrection(
+                database: database, courseID: courseID, date: correction.inferredDate,
+                isAllDay: correction.isAllDay
+            ) : nil
         let audience: AcademicAudienceResolution = correction.category == .courseScheduleChange
             ? (targetMeetingID == nil ? .pendingReview : .resolved) : .noTarget
         let record = AcademicSignalRecord(
@@ -256,7 +261,8 @@ final class AcademicSignalPersistence: @unchecked Sendable {
             provider: analysis.string("provider") ?? "Local correction",
             model: analysis.string("model") ?? "local", promptVersion: analysis.string("prompt_version") ?? "local",
             schemaVersion: analysis.string("schema_version") ?? "local",
-            confirmationState: correction.category == .courseScheduleChange ? .pending : .corrected,
+            confirmationState: [.courseScheduleChange, .makeupClass].contains(correction.category)
+                ? .pending : .corrected,
             adoptedCategory: correction.category, adoptedDate: correction.inferredDate,
             adoptedIsAllDay: correction.isAllDay, courseID: courseID,
             adoptedKeyRequirement: correction.keyRequirement,
@@ -301,6 +307,7 @@ final class AcademicSignalPersistence: @unchecked Sendable {
                 }
             }
             let calendarSafe = correction.category != .courseScheduleChange
+                && correction.category != .makeupClass
                 && correction.inferredDate != nil
             if calendarSafe {
                 try enqueueCalendarDecision(signalID: signalID, eligible: true,

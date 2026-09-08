@@ -4,6 +4,7 @@ struct AnnouncementsView: View {
     @ObservedObject var model: DashboardModel
     @State private var category: AcademicSignalCategory?
     @State private var correctionTarget: AcademicCorrectionTarget?
+    @State private var previewError: String?
 
     var body: some View {
         PageContainer(title: model.text("Announcements"), subtitle: model.text("Source content with local-only read state")) {
@@ -25,6 +26,9 @@ struct AnnouncementsView: View {
                         Spacer()
                         Text(model.text("AI labels are local suggestions, not Canvas facts."))
                             .font(.caption).foregroundStyle(.secondary)
+                    }
+                    if let previewError {
+                        Text(model.text(previewError)).font(.caption).foregroundStyle(.red)
                     }
                     ForEach(filteredAnnouncements) { announcement in
                         Card {
@@ -61,6 +65,9 @@ struct AnnouncementsView: View {
                 correctionTarget = nil
             }
         }
+        .sheet(item: $model.calendarChangePreview) { preview in
+            CalendarChangePreviewSheet(model: model, preview: preview)
+        }
         .task { model.refreshAIConfiguration() }
     }
 
@@ -71,7 +78,9 @@ struct AnnouncementsView: View {
                 if category == .other {
                     return model.academicAnalysis(for: announcement.id)?.primaryCategory == .other
                 }
-                return model.academicSignals(for: announcement.id).contains { $0.category == category }
+                return model.academicSignals(for: announcement.id).contains {
+                    ($0.adoptedCategory ?? $0.category) == category
+                }
             }
             .sorted { $0.publishedAt > $1.publishedAt }
     }
@@ -114,8 +123,10 @@ struct AnnouncementsView: View {
         } else {
             ForEach(signals) { signal in
                 VStack(alignment: .leading, spacing: 4) {
+                    let effectiveCategory = signal.adoptedCategory ?? signal.category
+                    let effectiveDate = signal.adoptedDate ?? signal.inferredDate
                     HStack {
-                        Badge(text: model.text(categoryLabel(signal.category)), color: .purple)
+                        Badge(text: model.text(categoryLabel(effectiveCategory)), color: .purple)
                         if !signal.conflicts.isEmpty {
                             Badge(text: model.text("Conflict / uncertain"), color: .orange)
                         }
@@ -126,10 +137,10 @@ struct AnnouncementsView: View {
                         Text(signal.confidence, format: .percent.precision(.fractionLength(0)))
                     }
                     labeled("Evidence", signal.evidence)
-                    labeled("Key requirement", signal.keyRequirement)
-                    if let date = signal.inferredDate {
+                    labeled("Key requirement", signal.adoptedKeyRequirement ?? signal.keyRequirement)
+                    if let date = effectiveDate {
                         labeled("Inferred date (not yet authorized)",
-                                (signal.isAllDay ? model.text("All-day") + " · " : "") + model.format(date))
+                                ((signal.adoptedIsAllDay ?? signal.isAllDay) ? model.text("All-day") + " · " : "") + model.format(date))
                     }
                     labeled("Reason", signal.reason)
                     if !signal.conflicts.isEmpty { labeled("Conflicts", signal.conflicts.joined(separator: " · ")) }
@@ -137,11 +148,30 @@ struct AnnouncementsView: View {
                         .font(.caption2).foregroundStyle(.tertiary)
                     if signal.confirmationState == .pending {
                         HStack {
-                            Button(model.text("Confirm locally")) { model.confirmAcademicSignal(signal.id) }
+                            Button(model.text(effectiveCategory == .courseScheduleChange || effectiveDate != nil
+                                ? "Preview Calendar change…" : "Confirm locally")) {
+                                if effectiveCategory == .courseScheduleChange || effectiveDate != nil {
+                                    Task {
+                                        if !(await model.previewAcademicSignal(signal.id)) {
+                                            previewError = "Calendar preview could not be opened. No event was changed."
+                                        } else { previewError = nil }
+                                    }
+                                } else {
+                                    model.confirmAcademicSignal(signal.id)
+                                }
+                            }
                                 .buttonStyle(.borderedProminent)
-                                .disabled(signal.audienceResolution == .pendingReview)
+                                .disabled(effectiveCategory == .courseScheduleChange
+                                    && signal.audienceResolution != .resolved)
                             Button(model.text("Correct…")) { correctionTarget = .init(analysis: analysis, signal: signal, courseID: announcement.courseID) }
                             Button(model.text("Reject"), role: .destructive) { model.rejectAcademicSignal(signal.id) }
+                        }
+                        if effectiveCategory == .courseScheduleChange
+                            && signal.audienceResolution != .resolved {
+                            Text(model.text(signal.decisionOrigin == .userCorrection
+                                ? "Correction saved locally, but the selected date does not match exactly one SIweb meeting. A new makeup class cannot be added to Schedule or Calendar from this control."
+                                : "Correct this item to an exact SIweb meeting before previewing it."))
+                                .font(.caption2).foregroundStyle(.secondary)
                         }
                     } else if signal.confirmationState == .notRequired {
                         HStack {
@@ -184,6 +214,7 @@ struct AnnouncementsView: View {
     private func categoryLabel(_ value: AcademicSignalCategory) -> String {
         switch value {
         case .courseScheduleChange: "Course schedule change"
+        case .makeupClass: "Make-up class"
         case .assignmentDeadline: "Assignment deadline"
         case .examTime: "Exam or Quiz time"
         case .other: "Other"
@@ -214,6 +245,7 @@ struct AcademicSignalCorrectionSheet: View {
     @State private var keyRequirement: String
     @State private var timeZoneIdentifier: String
     @State private var courseID: UUID
+    @State private var saveError: String?
 
     init(model: DashboardModel, target: AcademicCorrectionTarget, completed: @escaping () -> Void) {
         self.model = model; self.target = target; self.completed = completed
@@ -227,6 +259,7 @@ struct AcademicSignalCorrectionSheet: View {
         _timeZoneIdentifier = State(initialValue: target.signal?.adoptedTimeZoneIdentifier
             ?? target.signal?.timeZoneIdentifier ?? TimeZone.current.identifier)
         _courseID = State(initialValue: target.signal?.courseID ?? target.courseID)
+        _saveError = State(initialValue: nil)
     }
 
     var body: some View {
@@ -234,6 +267,7 @@ struct AcademicSignalCorrectionSheet: View {
             Text(model.text("Correct academic signal")).font(.title2.weight(.semibold))
             Picker(model.text("Category"), selection: $category) {
                 Text(model.text("Course schedule change")).tag(AcademicSignalCategory.courseScheduleChange)
+                Text(model.text("Make-up class")).tag(AcademicSignalCategory.makeupClass)
                 Text(model.text("Assignment deadline")).tag(AcademicSignalCategory.assignmentDeadline)
                 Text(model.text("Exam or Quiz time")).tag(AcademicSignalCategory.examTime)
             }
@@ -249,24 +283,36 @@ struct AcademicSignalCorrectionSheet: View {
             }
             Text(model.text(category == .courseScheduleChange
                 ? "Saving this correction does not authorize Calendar. Preview the exact SIweb meeting, then confirm."
-                : "A corrected date remains inferred and this save records explicit local confirmation."))
+                : (category == .makeupClass
+                    ? "Saving a make-up class does not authorize Calendar. Preview the new three-hour event, then confirm."
+                    : "A corrected date remains inferred and this save records explicit local confirmation.")))
                 .font(.caption).foregroundStyle(.secondary)
+            if let saveError {
+                Text(model.text(saveError)).font(.caption).foregroundStyle(.red)
+            }
             HStack {
                 Spacer()
                 Button(model.text("Cancel")) { dismiss() }
                 Button(model.text("Save correction")) {
+                    let saved: Bool
                     if let signal = target.signal {
-                        model.correctAcademicSignal(signal.id, category: category,
+                        saved = model.correctAcademicSignal(signal.id, category: category,
                             keyRequirement: keyRequirement, date: includeDate ? date : nil,
                             isAllDay: isAllDay, timeZoneIdentifier: includeDate ? timeZoneIdentifier : nil,
                             courseID: courseID)
                     } else if let analysis = target.analysis {
-                        model.correctAcademicAnalysis(analysis.id, category: category,
+                        saved = model.correctAcademicAnalysis(analysis.id, category: category,
                             keyRequirement: keyRequirement, date: includeDate ? date : nil,
                             isAllDay: isAllDay, timeZoneIdentifier: includeDate ? timeZoneIdentifier : nil,
                             courseID: courseID)
+                    } else {
+                        saved = false
                     }
-                    completed(); dismiss()
+                    if saved {
+                        completed(); dismiss()
+                    } else {
+                        saveError = "The academic-signal correction could not be saved."
+                    }
                 }.buttonStyle(.borderedProminent)
             }
         }.padding(24).frame(width: 520)
