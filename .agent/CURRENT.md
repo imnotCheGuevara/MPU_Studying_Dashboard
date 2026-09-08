@@ -4,47 +4,39 @@ Updated: 2026-09-08 Asia/Macau.
 
 ## Active state
 
-- **Stage 15S: PARTIAL.** Repairs are merged at `8a9e8b7`, with additional uncommitted Announcements action-path, correction-feedback, and make-up-event repairs. The correction UI now has an independent `makeup_class` category: selecting a course attributes the new event but does not try to match an existing SIweb meeting. It stays pending until a read-only preview and explicit confirmation, then creates an app-owned three-hour event. Existing-class cancellation remains exact-meeting-only. Calendar preview no longer requires prior Calendar permission/configuration and Announcements displays a visible failure instead of silently doing nothing. The main conversation passed all 244 tests and relaunched the rebuilt signed app. A user-confirmed real cancellation preview/confirm/undo is still mandatory.
-- **Stage 15R: PARTIAL.** SIweb in-app authorization now closes correctly and immediately runs exactly one isolated successful SIweb sync (98 records); Canvas remains ready and the former 35-second loop did not recur. Calendar access is restored to the dedicated iCloud calendar. Final acceptance is blocked by Stage 15S and then a user-confirmed real Calendar lifecycle.
-- **Stage 15: PARTIAL.** Its technical work is preserved: 213 tests passed, the synthetic classifier fixture improved from 17/20 to 20/20, the signed bundle built/launched, and live Canvas read-only smoke passed. It is not accepted because setup/recovery and mandatory real signed-app lifecycle checks remain incomplete.
-- **Stage 10: PAUSED at 0/7.** Resume only after Stage 15R passes and the main conversation freezes the new candidate.
-- **Stages 13–14: PAUSED/DEFERRED.** Outlook is outside this release pending school IT policy.
-- Latest accepted stage: **12**. Direct current evidence: `.agent/handoffs/stage-15s.md`; active contract: `.agent/stages/stage-15s.md`.
+- **Stage 15T: IN PROGRESS.** Authorized pre-release repair for information noise: Announcements remains the complete source feed; the renamed 待确认 / Needs Review center shows only unresolved actionable decisions; deterministic empty Canvas assignment shells are collapsed locally and reactivate when real work appears.
+- **Stage 15S: PARTIAL.** Implementation and follow-up correction/make-up workflows are merged through `f3c967c`; all 244 tests pass. A real exact cancellation preview plus separately approved confirm/undo in the dedicated calendar remains mandatory.
+- **Stage 15R / 15: PARTIAL.** Technical work is preserved; neither is accepted until 15T is accepted and the combined signed candidate completes the remaining real lifecycle gates.
+- **Stage 10: PAUSED at 0/7.** Do not start the trial until the no-Outlook candidate is accepted and frozen.
+- **Stages 13–14: PAUSED/DEFERRED.** Outlook remains outside this release pending school IT policy.
+- Latest accepted stage: **12**. Current contract: `.agent/stages/stage-15t.md`; direct prerequisite evidence: relevant sections of `.agent/handoffs/stage-15s.md`.
 
-## Git
+## Git and implementation
 
-- Branch `main`; Stage 15S implementation is merged at `8a9e8b7` on top of authorization commit `5ad3a0b`.
-- Main-checkout rebuilt candidate is `0.3.0 (4)`, executable SHA-256 `c28e70dc4bb1050a2d6aab528fd33d75637a63d8fe3e1121c653b5bb7608ff88`, CDHash `9bbdbaf4f8cfbc01e1e73f997540942aa96468af`; strict signature verification passed. Do not freeze it until the remaining real gates pass.
+- Branch `main`; Stage 15S correction workflows are committed at `f3c967c`. Stage 15T control files are the next main-thread commit.
+- Swift/SwiftUI macOS app using SQLite, Keychain, read-only Canvas/SIweb connectors, isolated sync, EventKit, notifications/background scheduling, bilingual spatial calendars, and controlled DeepSeek announcement classification/correction.
+- Current signed candidate is version `0.3.0 (4)`, but must be rebuilt after Stage 15T and must not be frozen yet.
+- Stage 15S rejects schedule dates unless course/section/meeting identity resolves uniquely to a current SIweb meeting. Ambiguous, wrong-section, stale, targetless, or response-deadline signals remain pending and cannot reach Schedule, Calendar, or notifications. `makeup_class` is a separate app-owned event path; both paths require read-only preview and explicit confirmation.
 
-## Stable boundaries
+## Stable decisions
 
-- Canvas API and SIweb are authorized read-only. Never submit or change school data or bypass login, CAPTCHA, MFA, access controls, tenant policy, or school rules.
-- Credentials, keys, cookies, tokens, and system passwords are Keychain/user-entry only. They never enter source, databases, configuration, fixtures, logs, screenshots, diagnostics, commands, commits, or handoffs. System prompts are completed only by the user.
-- DeepSeek is opt-in and receives only minimum sanitized Canvas content. Direct HTTPS is exact-host `api.deepseek.com`; never change FlClash or the global/system proxy. Corrections are local, auditable, reversible supervised feedback and never uploaded as training data.
-- Official dates are authoritative. Every text-inferred date requires explicit confirmation before Calendar or deadline-notification eligibility, regardless of confidence.
-- Apple Calendar writes are limited to app-owned bound events in the dedicated Campus Dashboard calendar. Never touch personal, family, shared, subscribed, or unrelated events.
-- Outlook remains disabled, unconfigured, dormant, and excluded. No app registration, authorization, Graph/mail access, scraping, or Outlook-to-DeepSeek transfer.
+- Canvas API and SIweb access are authorized read-only. Never submit/change school data or bypass login, CAPTCHA, MFA, access controls, tenant policy, or school rules.
+- Credentials, keys, cookies, tokens, and passwords are Keychain/user-entry only and never enter source, DB, config, fixtures, logs, screenshots, diagnostics, commands, commits, or handoffs.
+- DeepSeek is opt-in and receives only minimum sanitized Canvas content. Do not modify FlClash/system proxy. Corrections stay local and are not uploaded as training data.
+- Official source fields win. Every text-inferred date requires explicit confirmation before Calendar or deadline-notification eligibility, regardless of confidence.
+- Calendar writes are limited to bound app-owned events in the dedicated Campus Dashboard calendar. Never touch personal, family, shared, subscribed, or unrelated events.
+- Outlook stays disabled, unconfigured, dormant, and excluded; no registration, authorization, Graph/mail access, scraping, or Outlook-to-DeepSeek transfer.
 
-## Existing implementation
+## Stage 15T outcome required
 
-Swift/SwiftUI macOS app with SQLite, Keychain, read-only Canvas/SIweb connectors, isolated sync, EventKit, notifications/background scheduling, diagnostics, bilingual spatial calendars, controlled DeepSeek announcement classification, correction/personalization, schedule/exam mapping, confirmation gating, and signed `dist/Campus Dashboard.app`.
+1. Announcements keeps all original items and source actions; Needs Review contains only unresolved actionable items and offers working correction for provider-unavailable and `other` cases.
+2. Truly empty Canvas assignment shells are preserved but collapsed per course, excluded from AI/Calendar/notifications/normal task lists, and safely reactivated under the same stable identity when any actionable source evidence appears.
+3. No-submission offline/reading tasks stay visible; uncertain evidence fails open. Persist user visibility override and aggregate-only suppression/reactivation metrics.
+4. Preserve all Stage 15S safety gates and Outlook dormancy. Stage task writes only scoped code/tests and `.agent/handoffs/stage-15t.md`.
 
-Stage 15R added in-app setup/recovery, audited Canvas↔SIweb mapping, centralized AI correction, exact Calendar preview/confirmation/undo, exam/deadline markers, aggregate metrics, synthetic-data filtering, and a disabled Outlook entry.
+## Verification and next gate
 
-Stage 15S now rejects provider dates unless the affected meeting role, enrolled SIweb section, proposed meeting identity, persisted target, and current unique SIweb meeting agree. Ambiguous, wrong-section, make-up, response-deadline, stale, or targetless schedule changes return to pending review and are excluded from Schedule, Calendar, and notifications. Manual correction saves only a pending proposal; a fresh exact preview and separate confirmation are required.
-
-Manual correction may instead classify a true added session as `makeup_class`. That category is deliberately independent of SIweb meeting targeting: the selected course supplies attribution only, preview is read-only, and explicit confirmation creates a standalone app-owned event. It never reuses the exact-meeting cancellation path.
-
-## Stage 15S remaining gate
-
-1. Complete signed-app Canvas and SIweb read-only refreshes without exposing source content.
-2. Reprocess source `25573` with explicit DeepSeek data-transfer consent, or let the user correct it to the exact September 7 SIweb meeting.
-3. Verify the resulting exact bilingual preview.
-4. After fresh action-time approval, confirm and undo only that previewed meeting in the dedicated Campus Dashboard calendar.
-
-Do not begin the seven-day trial or claim resume metrics. Do not perform a real EventKit mutation without action-time confirmation from the user in the main conversation. Stage 15R remains blocked until Stage 15S passes and the repaired real lifecycle is revalidated.
-
-## Required final gate
+Required final commands:
 
 ```sh
 ./scripts/test.sh
@@ -54,8 +46,10 @@ codesign --verify --deep --strict "dist/Campus Dashboard.app"
 git diff --check
 ```
 
-Also run focused setup/recovery/AI/Calendar tests, bilingual signed-app and accessibility walkthrough, credential/private-data/prohibited-network scans, Outlook no-traffic assertion, and permitted aggregate-only real checks. Never handle user credentials; pause at macOS or institutional prompts for the user.
+Also require focused queue/placeholder/migration/downstream tests, bilingual synthetic signed-app and accessibility walkthrough, and targeted secret/private-data/network scans. No real EventKit mutation without fresh action-time approval.
+
+After the Stage 15T task produces its handoff, the main conversation inspects the diff and handoff, reruns high-risk checks, and either accepts or returns a bounded repair. Only after 15T acceptance should the combined real Canvas/SIweb/UI lifecycle and the outstanding Stage 15S Calendar gate be resumed.
 
 ## Lightweight continuation
 
-Read only `AGENTS.md`, `.agent/CURRENT.md`, `.agent/stages/stage-15s.md`, and the directly relevant sections of `.agent/handoffs/stage-15r.md`. Use targeted `rg -n` and narrow `sed -n` only for a named gap. Do not read Outlook history, all handoffs, the full specification, or old prompt collection. Stage task writes scoped product/tests and `.agent/handoffs/stage-15s.md`; central control files remain main-thread owned.
+Read only `AGENTS.md`, this file, `.agent/stages/stage-15t.md`, and relevant sections of `.agent/handoffs/stage-15s.md` located with `rg -n`. Do not read all handoffs, the full specification, Outlook history, or the old prompt collection unless a concrete gap requires a narrow lookup.

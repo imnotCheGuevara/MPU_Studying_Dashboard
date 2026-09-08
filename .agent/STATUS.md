@@ -2,7 +2,7 @@
 
 Only the main project conversation updates this file after inspecting and accepting a stage handoff.
 
-Current authorized stage: **Stage 15S**
+Current authorized stage: **Stage 15T**
 
 | Stage | Status | Accepted handoff | Notes |
 | --- | --- | --- | --- |
@@ -24,6 +24,7 @@ Current authorized stage: **Stage 15S**
 | 15 | PARTIAL | `.agent/handoffs/stage-15.md` (`PARTIAL`) | Technical integration candidate delivered, but terminal-only SIweb authorization and incomplete setup/recovery/real lifecycle prevent release acceptance; superseded for repair by Stage 15R |
 | 15R | PARTIAL | `.agent/handoffs/stage-15r.md` (`PARTIAL`) | Reconciliation repair committed (`5df93d7`, handoff `bcadf8f`); 226 tests/20 suites, build, signature, safety scans, conflict decisions, canonical presentation, schedule-change semantics, and synthetic-source exclusion pass. Awaiting the user-only Keychain/system prompt, dedicated Calendar permission, and main-thread real signed-app walkthrough before acceptance |
 | 15S | PARTIAL | `.agent/handoffs/stage-15s.md` (`PARTIAL`) | Repair merged; tests and signed-app schema-14 safety migration pass. Source `25573` is now pending/no-target and absent from Schedule, with correction UI available. Its legacy wrong date remains; awaiting consented reprocess or user correction, exact preview, and separately approved EventKit confirm/undo. |
+| 15T | IN PROGRESS | — | Authorized pre-release repair: separate the complete Announcements feed from an actionable Needs Review center, and conservatively suppress/reactivate empty Canvas assignment shells without deletion or downstream side effects. |
 
 Status meanings:
 

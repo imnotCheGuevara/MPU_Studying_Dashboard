@@ -24,6 +24,7 @@ The main project conversation owns this roadmap and accepts each stage. Stage co
 | 15 | Final integration, AI field repair, and release candidate | 12; Outlook deferred | Correctable local feedback improves announcement classification; confirmed schedule/exam signals reconcile safely; measurable no-Outlook integration passes and a signed build is frozen for Stage 10 |
 | 15R | Release usability closure | 15 partial | All setup is available in-app; failures are recoverable; AI review and Calendar actions are explicit; the release is reproducible and instrumented for honest seven-day metrics |
 | 15S | Schedule-change targeting safety repair | 15R partial; real acceptance defect | Multi-section cancellation dates are section-aware, uniquely bound to SIweb meetings, never shown or written as standalone confirmed changes when unresolved, and always require explicit confirmation |
+| 15T | Information-noise reduction and Needs Review center | 15S implementation baseline | Announcements remains the source feed; Needs Review contains only actionable unresolved decisions; empty Canvas assignment shells are locally collapsed and reactivate idempotently when actionable |
 
 ## Parallelism policy
 
@@ -31,7 +32,7 @@ The main project conversation owns this roadmap and accepts each stage. Stage co
 - Stages 06 and 07 may run in parallel after Stage 05 is accepted, but only in isolated Git worktrees. In the same checkout, run them sequentially.
 - All other dependency edges are sequential.
 - The DeepSeek track ended with accepted Stage 12. The Outlook track (Stages 13–14) is explicitly deferred pending school IT guidance and is not on the current critical path.
-- Stage 15S implementation is merged and synthetic gates pass, but it remains `PARTIAL` until the rebuilt signed app completes source/UI/v14 migration checks and a separately approved exact Calendar confirm/undo lifecycle. Stage 15R cannot pass until those checks succeed. Only then may the main conversation freeze a reproducible no-Outlook candidate and resume Stage 10 at 0/7.
+- Stage 15S implementation and follow-up correction workflows are merged and its synthetic gates pass, but its real Calendar lifecycle remains `PARTIAL`. Stage 15T is authorized as a bounded pre-release usability repair and does not earn Stage 15S real-lifecycle credit. After 15T acceptance, the main conversation must revalidate the combined signed candidate, then complete the separately approved Stage 15S exact Calendar confirm/undo lifecycle before Stage 15R can pass or Stage 10 can resume at 0/7.
 - Historical Stage 10R gate remains satisfied. Outlook work performed offline during partial Stage 13 earns no acceptance credit and must remain dormant during the trial.
 - Parallel stages must not edit the same central planning files. Each writes only its own handoff.
 
