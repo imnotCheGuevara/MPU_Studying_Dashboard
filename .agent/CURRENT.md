@@ -14,7 +14,7 @@ Updated: 2026-09-08 Asia/Macau.
 ## Git
 
 - Branch `main`; Stage 15S implementation is merged at `8a9e8b7` on top of authorization commit `5ad3a0b`.
-- Rebuilt unfrozen candidate is `0.3.0 (4)`, executable SHA-256 `956abdc49a1dfa3742a00080c0da902429368d4a6b7c9ed3cd21aced9b6bf5f0`, CDHash `95d7a377b85eb1569ed1d0c9858a2a6e34d2feed`. Do not treat it as the release candidate until the remaining real gates pass.
+- Main-checkout rebuilt candidate is `0.3.0 (4)`, executable SHA-256 `4e8cd14e636688430476d6d18db36c00060ce00b8621dba97b9697b02d51599e`; strict signature verification passed. Do not freeze it until the remaining real gates pass.
 
 ## Stable boundaries
 
