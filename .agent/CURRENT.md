@@ -29,9 +29,7 @@ Updated: 2026-09-08 Asia/Macau.
 
 Swift/SwiftUI macOS app with SQLite, Keychain, read-only Canvas/SIweb connectors, isolated sync, EventKit, notifications/background scheduling, diagnostics, bilingual spatial calendars, controlled DeepSeek announcement classification, correction/personalization, schedule/exam mapping, confirmation gating, and signed `dist/Campus Dashboard.app`.
 
-Stage 15R added the persistent setup checklist, in-app non-persistent SIweb authorization, isolated recovery center, centralized AI review/correction states, Calendar impact preview with confirmation/undo, accessible exam/deadline markers, local aggregate measurement, and disabled Outlook production entry.
-
-The 2026-09-07 repair adds persistent Canvas↔SIweb mapping decisions and audit, unique high-confidence auto-mapping, explicit Map/Keep separate/Undo/Reset for code conflicts, canonical dashboard/filter/notification identities, local re-resolution of schedule-change signals, distinct non-deadline schedule-change presentation, and production filtering of `Stage10Test`/synthetic provenance without deleting stored rows.
+Stage 15R added in-app setup/recovery, audited Canvas↔SIweb mapping, centralized AI correction, exact Calendar preview/confirmation/undo, exam/deadline markers, aggregate metrics, synthetic-data filtering, and a disabled Outlook entry.
 
 Stage 15S now rejects provider dates unless the affected meeting role, enrolled SIweb section, proposed meeting identity, persisted target, and current unique SIweb meeting agree. Ambiguous, wrong-section, make-up, response-deadline, stale, or targetless schedule changes return to pending review and are excluded from Schedule, Calendar, and notifications. Manual correction saves only a pending proposal; a fresh exact preview and separate confirmation are required.
 
