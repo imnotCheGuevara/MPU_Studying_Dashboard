@@ -71,6 +71,14 @@ enum AcademicAudienceResolution: String, Codable, Sendable {
     case pendingReview = "pending_review"
 }
 
+enum AcademicScheduleDateRole: String, Codable, CaseIterable, Sendable {
+    case affectedMeeting = "affected_meeting"
+    case makeupOption = "makeup_option"
+    case responseDeadline = "response_deadline"
+    case otherSection = "other_section"
+    case ambiguous
+}
+
 struct AcademicSignalSuggestion: Equatable, Codable, Sendable {
     let category: AcademicSignalCategory
     let evidence: String
@@ -81,6 +89,36 @@ struct AcademicSignalSuggestion: Equatable, Codable, Sendable {
     let confidence: Double
     let reason: String
     let conflicts: [String]
+    let scheduleDateRole: AcademicScheduleDateRole?
+    let affectedSection: String?
+    let proposedTargetMeetingID: UUID?
+
+    private enum CodingKeys: String, CodingKey {
+        case category, evidence, keyRequirement, inferredDate, isAllDay
+        case timeZoneIdentifier, confidence, reason, conflicts, scheduleDateRole, affectedSection
+        case proposedTargetMeetingID = "targetMeetingID"
+    }
+
+    init(
+        category: AcademicSignalCategory, evidence: String, keyRequirement: String,
+        inferredDate: Date?, isAllDay: Bool, timeZoneIdentifier: String?,
+        confidence: Double, reason: String, conflicts: [String],
+        scheduleDateRole: AcademicScheduleDateRole? = nil,
+        affectedSection: String? = nil, proposedTargetMeetingID: UUID? = nil
+    ) {
+        self.category = category
+        self.evidence = evidence
+        self.keyRequirement = keyRequirement
+        self.inferredDate = inferredDate
+        self.isAllDay = isAllDay
+        self.timeZoneIdentifier = timeZoneIdentifier
+        self.confidence = confidence
+        self.reason = reason
+        self.conflicts = conflicts
+        self.scheduleDateRole = scheduleDateRole
+        self.affectedSection = affectedSection
+        self.proposedTargetMeetingID = proposedTargetMeetingID
+    }
 }
 
 struct AcademicSignalProviderResponse: Equatable, Codable, Sendable {
@@ -144,6 +182,9 @@ struct AcademicSignalRecord: Identifiable, Equatable, Sendable {
     let personalizationRuleVersion: String?
     let targetMeetingID: UUID?
     let audienceResolution: AcademicAudienceResolution
+    let scheduleDateRole: AcademicScheduleDateRole?
+    let affectedSection: String?
+    let proposedTargetMeetingID: UUID?
     let createdAt: Date
     let updatedAt: Date
 
@@ -179,6 +220,9 @@ struct AcademicSignalRecord: Identifiable, Equatable, Sendable {
         personalizationRuleVersion: String? = nil,
         targetMeetingID: UUID? = nil,
         audienceResolution: AcademicAudienceResolution = .noTarget,
+        scheduleDateRole: AcademicScheduleDateRole? = nil,
+        affectedSection: String? = nil,
+        proposedTargetMeetingID: UUID? = nil,
         createdAt: Date,
         updatedAt: Date
     ) {
@@ -211,6 +255,9 @@ struct AcademicSignalRecord: Identifiable, Equatable, Sendable {
         self.personalizationRuleVersion = personalizationRuleVersion
         self.targetMeetingID = targetMeetingID
         self.audienceResolution = audienceResolution
+        self.scheduleDateRole = scheduleDateRole
+        self.affectedSection = affectedSection
+        self.proposedTargetMeetingID = proposedTargetMeetingID
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -271,7 +318,7 @@ struct AcademicProviderFailurePresentation: Equatable, Sendable {
         case "malformed_response", "root_missing_key", "root_unknown_key",
              "signal_missing_core_key", "signal_unknown_key", "invalid_category",
              "invalid_primary_index", "invalid_date", "invalid_timezone", "bounds_violation",
-             "type_mismatch", "model_mismatch", "tool_call_rejected", "truncated",
+             "invalid_schedule_target", "type_mismatch", "model_mismatch", "tool_call_rejected", "truncated",
              "content_filtered":
             return .init(categoryKey: "Provider response could not be safely used", retryable: false,
                          recoveryKey: "Use the retained local result or reprocess later.")
@@ -304,6 +351,7 @@ enum AcademicSignalValidationError: String, Error, Equatable, CaseIterable, Send
     case invalidPrimaryIndex = "invalid_primary_index"
     case invalidDate = "invalid_date"
     case invalidTimezone = "invalid_timezone"
+    case invalidScheduleTarget = "invalid_schedule_target"
     case boundsViolation = "bounds_violation"
     case typeMismatch = "type_mismatch"
     case other
@@ -314,13 +362,16 @@ enum AcademicSignalOutputValidator {
     private static let rootKeys: Set<String> = ["primaryCategory", "signals"]
     private static let signalKeys: Set<String> = [
         "category", "evidence", "keyRequirement", "inferredDate", "isAllDay",
-        "timeZoneIdentifier", "confidence", "reason", "conflicts"
+        "timeZoneIdentifier", "confidence", "reason", "conflicts", "scheduleDateRole",
+        "affectedSection", "targetMeetingID"
     ]
     private static let requiredSignalKeys: Set<String> = [
         "category", "evidence", "keyRequirement", "isAllDay", "confidence", "reason", "conflicts"
     ]
 
-    static func decode(_ data: Data) throws -> AcademicSignalProviderResponse {
+    static func decode(
+        _ data: Data, meetingInput: AcademicSignalInput? = nil
+    ) throws -> AcademicSignalProviderResponse {
         guard !data.isEmpty, data.count <= maximumOutputBytes else {
             throw AcademicSignalValidationError.boundsViolation
         }
@@ -388,15 +439,62 @@ enum AcademicSignalOutputValidator {
             else { throw AcademicSignalValidationError.typeMismatch }
             if date == nil && allDay { throw AcademicSignalValidationError.invalidDate }
             if date == nil && zone != nil { throw AcademicSignalValidationError.invalidTimezone }
+            let dateRole: AcademicScheduleDateRole?
+            if value["scheduleDateRole"] == nil || value["scheduleDateRole"] is NSNull { dateRole = nil }
+            else if let text = value["scheduleDateRole"] as? String,
+                    let parsed = AcademicScheduleDateRole(rawValue: text) { dateRole = parsed }
+            else if value["scheduleDateRole"] is String {
+                throw AcademicSignalValidationError.invalidScheduleTarget
+            } else { throw AcademicSignalValidationError.typeMismatch }
+            let affectedSection: String?
+            if value["affectedSection"] == nil || value["affectedSection"] is NSNull {
+                affectedSection = nil
+            } else if let text = value["affectedSection"] as? String,
+                      !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                      text.count <= 40 {
+                affectedSection = text
+            } else if value["affectedSection"] is String {
+                throw AcademicSignalValidationError.boundsViolation
+            } else { throw AcademicSignalValidationError.typeMismatch }
+            let proposedTarget: UUID?
+            if value["targetMeetingID"] == nil || value["targetMeetingID"] is NSNull {
+                proposedTarget = nil
+            } else if let text = value["targetMeetingID"] as? String, let parsed = UUID(uuidString: text) {
+                proposedTarget = parsed
+            } else if value["targetMeetingID"] is String {
+                throw AcademicSignalValidationError.invalidScheduleTarget
+            } else { throw AcademicSignalValidationError.typeMismatch }
+            if category == .courseScheduleChange {
+                guard dateRole != nil else { throw AcademicSignalValidationError.invalidScheduleTarget }
+                if dateRole == .affectedMeeting,
+                   (date == nil || affectedSection == nil || proposedTarget == nil) {
+                    throw AcademicSignalValidationError.invalidScheduleTarget
+                }
+                if dateRole != .affectedMeeting, proposedTarget != nil {
+                    throw AcademicSignalValidationError.invalidScheduleTarget
+                }
+            } else if dateRole != nil || affectedSection != nil || proposedTarget != nil {
+                throw AcademicSignalValidationError.invalidScheduleTarget
+            }
             return AcademicSignalSuggestion(
                 category: category, evidence: evidence, keyRequirement: requirement,
                 inferredDate: date, isAllDay: allDay, timeZoneIdentifier: zone,
-                confidence: confidence.doubleValue, reason: reason, conflicts: conflicts
+                confidence: confidence.doubleValue, reason: reason, conflicts: conflicts,
+                scheduleDateRole: dateRole, affectedSection: affectedSection,
+                proposedTargetMeetingID: proposedTarget
             )
         }
         if signals.isEmpty && primary != .other { throw AcademicSignalValidationError.invalidPrimaryIndex }
         if !signals.isEmpty && (primary == .other || !signals.contains(where: { $0.category == primary })) {
             throw AcademicSignalValidationError.invalidPrimaryIndex
+        }
+        if let meetingInput {
+            for signal in signals where signal.category == .courseScheduleChange
+                && signal.scheduleDateRole == .affectedMeeting {
+                guard AcademicScheduleTargetResolver.resolve(signal: signal, input: meetingInput) != nil else {
+                    throw AcademicSignalValidationError.invalidScheduleTarget
+                }
+            }
         }
         return AcademicSignalProviderResponse(primaryCategory: primary, signals: signals)
     }

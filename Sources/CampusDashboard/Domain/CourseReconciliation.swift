@@ -65,6 +65,19 @@ enum CourseIdentityNormalizer {
         return String(value[range])
     }
 
+    static func sectionIdentifier(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let normalized = normalizedFullCode(value)
+        guard !normalized.isEmpty else { return nil }
+        if let base = baseCode(normalized), normalized.count > base.count {
+            return String(normalized.dropFirst(base.count))
+        }
+        let stripped = normalized
+            .replacingOccurrences(of: "SECTION", with: "")
+            .replacingOccurrences(of: "SEC", with: "")
+        return stripped.isEmpty ? nil : stripped
+    }
+
     static func normalizedTitle(_ value: String) -> String {
         var result = value.folding(options: [.diacriticInsensitive, .widthInsensitive], locale: Locale(identifier: "en_US_POSIX"))
         result = replacing(termPrefixExpression, in: result, with: "")
@@ -304,39 +317,102 @@ final class CourseReconciliationService: @unchecked Sendable {
     private func reresolveScheduleSignals() throws {
         let signals = try database.query(
             """
-            SELECT s.id,s.course_id,s.inferred_date,s.adopted_date FROM academic_signals s
+            SELECT s.* FROM academic_signals s
             JOIN courses c ON c.id=s.course_id JOIN source_accounts sa ON sa.id=c.source_account_id
-            WHERE s.is_active=1 AND s.category='course_schedule_change' AND LOWER(sa.source_kind)='canvas'
+            WHERE s.is_active=1
+              AND COALESCE(s.adopted_category,s.category)='course_schedule_change'
+              AND LOWER(sa.source_kind) IN ('canvas','siweb')
             """
         )
         for signal in signals {
-            guard let signalID = signal.string("id"), let canvasID = signal.string("course_id") else { continue }
-            let mapped = try database.query(
-                "SELECT siweb_course_id FROM academic_course_mappings WHERE canvas_course_id=? AND is_active=1 AND decision_state='confirmed'",
-                bindings: [.text(canvasID)]
-            ).compactMap { $0.string("siweb_course_id") }
-            var target: String?
-            var audience = AcademicAudienceResolution.pendingReview.rawValue
-            if mapped.count == 1 {
-                let meetings = try database.query(
-                    "SELECT id,starts_at FROM course_meetings WHERE course_id=? AND source_state='active'",
-                    bindings: [.text(mapped[0])]
-                )
-                let date = signal.double("adopted_date") ?? signal.double("inferred_date")
-                let matches = date.map { value in
-                    meetings.filter { abs(($0.double("starts_at") ?? .greatestFiniteMagnitude) - value) <= 43_200 }
-                } ?? meetings
-                if matches.count == 1 {
-                    target = matches[0].string("id")
-                    audience = AcademicAudienceResolution.resolved.rawValue
+            guard let signalID = signal.string("id"),
+                  let courseID = signal.string("course_id").flatMap(UUID.init(uuidString:))
+            else { continue }
+            let previousTarget = signal.string("target_meeting_id").flatMap(UUID.init(uuidString:))
+            let proposedTarget = signal.string("proposed_target_meeting_id").flatMap(UUID.init(uuidString:))
+            let role = signal.string("schedule_date_role").flatMap(AcademicScheduleDateRole.init(rawValue:))
+            let expectedTarget = previousTarget ?? proposedTarget
+            let date = signal.double("adopted_date").map(Date.init(timeIntervalSince1970:))
+                ?? signal.double("inferred_date").map(Date.init(timeIntervalSince1970:))
+            let target = try AcademicScheduleTargetResolver.revalidate(
+                database: database, courseID: courseID, date: date,
+                isAllDay: signal.int("adopted_is_all_day").map { $0 == 1 }
+                    ?? (signal.int("is_all_day") == 1),
+                dateRole: role,
+                affectedSection: signal.string("affected_section"),
+                proposedTarget: proposedTarget,
+                expectedTarget: expectedTarget
+            )
+            let previousState = signal.string("confirmation_state")
+                .flatMap(AcademicSignalConfirmationState.init(rawValue:)) ?? .pending
+            let invalidated = [.confirmed, .corrected].contains(previousState) && target == nil
+            let nextState: AcademicSignalConfirmationState = invalidated ? .pending : previousState
+            let audience: AcademicAudienceResolution = target == nil ? .pendingReview : .resolved
+            let targetChanged = previousTarget != target
+            let audienceChanged = signal.string("audience_resolution") != audience.rawValue
+
+            if targetChanged || audienceChanged || invalidated {
+                let timestamp = now()
+                try database.transaction {
+                    try database.execute(
+                        "UPDATE academic_signals SET target_meeting_id=?,audience_resolution=?,confirmation_state=?,updated_at=? WHERE id=?",
+                        bindings: [target.map { .text($0.uuidString) } ?? .null,
+                                   .text(audience.rawValue), .text(nextState.rawValue),
+                                   .real(timestamp.timeIntervalSince1970), .text(signalID)]
+                    )
+                    if invalidated {
+                        try database.execute(
+                            "INSERT INTO academic_signal_audit(id,signal_id,action,previous_state,new_state,correction_json,occurred_at) VALUES(?,?,'target_invalidated',?,?,NULL,?)",
+                            bindings: [.text(UUID().uuidString), .text(signalID),
+                                       .text(previousState.rawValue), .text(nextState.rawValue),
+                                       .real(timestamp.timeIntervalSince1970)]
+                        )
+                    }
                 }
             }
-            try database.execute(
-                "UPDATE academic_signals SET target_meeting_id=?,audience_resolution=?,updated_at=? WHERE id=?",
-                bindings: [target.map(SQLiteValue.text) ?? .null, .text(audience),
-                           .real(now().timeIntervalSince1970), .text(signalID)]
+            if let previousTarget, previousTarget != target {
+                try enqueueCalendarReconcileIfBound(
+                    objectType: "course_meeting", objectID: previousTarget.uuidString,
+                    action: "schedule_target_invalidated"
+                )
+            }
+            try enqueueCalendarReconcileIfBound(
+                objectType: "academic_signal", objectID: signalID,
+                action: "schedule_standalone_cleanup"
             )
         }
+    }
+
+    private func enqueueCalendarReconcileIfBound(
+        objectType: String, objectID: String, action: String
+    ) throws {
+        let hasBinding = try database.query(
+            "SELECT 1 AS value FROM calendar_bindings WHERE object_type=? AND object_id=? AND sync_state!='removed' LIMIT 1",
+            bindings: [.text(objectType), .text(objectID)]
+        ).first != nil
+        guard hasBinding else { return }
+        let alreadyPending = try database.query(
+            "SELECT 1 AS value FROM outbox_work WHERE kind='calendar.reconcile' AND object_type=? AND object_id=? AND state IN ('pending','retry') LIMIT 1",
+            bindings: [.text(objectType), .text(objectID)]
+        ).first != nil
+        guard !alreadyPending else { return }
+        let timestamp = now()
+        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .millisecondsSince1970
+        let envelope = OutboxEnvelope.calendarReconcile(objectType: objectType, objectID: objectID)
+        try database.execute(
+            """
+            INSERT INTO outbox_work
+              (id,kind,deduplication_key,object_type,object_id,payload,state,attempt_count,
+               available_at,created_at,updated_at,last_error_category)
+            VALUES(?,'calendar.reconcile',?,?,?,?, 'pending',0,?,?,?,NULL)
+            """, bindings: [
+                .text(UUID().uuidString),
+                .text("calendar.reconcile:\(objectType):\(objectID):\(action):\(timestamp.timeIntervalSince1970)"),
+                .text(objectType), .text(objectID), .blob(try encoder.encode(envelope)),
+                .real(timestamp.timeIntervalSince1970), .real(timestamp.timeIntervalSince1970),
+                .real(timestamp.timeIntervalSince1970)
+            ]
+        )
     }
 
     private func decodeDecision(_ row: SQLiteRow) -> CourseMappingDecision? {

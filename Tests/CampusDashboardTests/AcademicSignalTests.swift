@@ -91,9 +91,25 @@ struct AcademicSignalTests {
     @Test("Unique Canvas to SIweb mapping targets one meeting; ambiguity blocks Calendar")
     func mappedMeetingSafety() async throws {
         try await withDatabase { database in
-            let seed = try seedAnnouncement(database, hash: "section-a", title: "Class cancellation", summary: "Class cancelled.")
-            let meetingID = try seedSIwebCourse(database, code: "SYN", sourceObjectID: "si-a", meetingObjectID: "meeting-a")
-            let coordinator = AcademicSignalCoordinator(database: database)
+            let seed = try seedAnnouncement(
+                database, hash: "section-a", title: "Class cancellation", summary: "Class cancelled.",
+                courseName: "Synthetic Systems", courseCode: "COMP3001-311"
+            )
+            let meetingID = try seedSIwebCourse(
+                database, code: "COMP3001-311", sourceObjectID: "si-a", meetingObjectID: "meeting-a"
+            )
+            let proposal = AcademicSignalSuggestion(
+                category: .courseScheduleChange, evidence: "Synthetic cancellation",
+                keyRequirement: "Do not attend this meeting.",
+                inferredDate: Date(timeIntervalSince1970: 2_000_000_000), isAllDay: false,
+                timeZoneIdentifier: "Asia/Macau", confidence: 0.95,
+                reason: "The synthetic fixture names the exact meeting.", conflicts: [],
+                scheduleDateRole: .affectedMeeting, affectedSection: "311",
+                proposedTargetMeetingID: meetingID
+            )
+            try enableProvider(database)
+            let provider = AcademicCapturingProvider(data: try encoded(.courseScheduleChange, [proposal]))
+            let coordinator = AcademicSignalCoordinator(database: database, provider: provider)
             _ = await coordinator.process(rawID: seed.rawID, announcementID: seed.announcementID,
                                           accountID: seed.accountID, sourceID: "ann-1",
                                           contentHash: "section-a", input: seed.input)
@@ -101,7 +117,12 @@ struct AcademicSignalTests {
             #expect(signal.targetMeetingID == meetingID)
             #expect(signal.audienceResolution == .resolved)
             #expect(try database.scalarInt("SELECT COUNT(*) AS value FROM outbox_work") == 0)
-            try coordinator.confirm(signal.id)
+            #expect(throws: AIParsingError.invalidTransition) {
+                try coordinator.confirm(signal.id)
+            }
+            try coordinator.confirmPreviewed(
+                signal.id, targetMeetingID: meetingID, signalUpdatedAt: signal.updatedAt
+            )
             #expect(try database.query("SELECT object_type,object_id FROM outbox_work").first?.string("object_type") == "course_meeting")
             #expect(try database.query("SELECT object_type,object_id FROM outbox_work").first?.string("object_id") == meetingID.uuidString)
             let confirmed = try #require(coordinator.activeSignals().first)
@@ -134,9 +155,12 @@ struct AcademicSignalTests {
         }
 
         try await withDatabase { database in
-            let seed = try seedAnnouncement(database, hash: "ambiguous", title: "Class cancellation", summary: "Class cancelled.")
-            _ = try seedSIwebCourse(database, code: "SYN", sourceObjectID: "si-a", meetingObjectID: "meeting-a")
-            _ = try seedSIwebCourse(database, code: "SYN", sourceObjectID: "si-b", meetingObjectID: "meeting-b")
+            let seed = try seedAnnouncement(
+                database, hash: "ambiguous", title: "Class cancellation", summary: "Class cancelled.",
+                courseName: "Synthetic Systems", courseCode: "COMP3001-311"
+            )
+            _ = try seedSIwebCourse(database, code: "COMP3001-311", sourceObjectID: "si-a", meetingObjectID: "meeting-a")
+            _ = try seedSIwebCourse(database, code: "COMP3001-312", sourceObjectID: "si-b", meetingObjectID: "meeting-b")
             let coordinator = AcademicSignalCoordinator(database: database)
             _ = await coordinator.process(rawID: seed.rawID, announcementID: seed.announcementID,
                                           accountID: seed.accountID, sourceID: "ann-1",
@@ -149,6 +173,63 @@ struct AcademicSignalTests {
                 Issue.record("Ambiguous section confirmation unexpectedly succeeded")
             } catch {}
             #expect(try database.scalarInt("SELECT COUNT(*) AS value FROM outbox_work") == 0)
+        }
+    }
+
+    @Test("Manual schedule correction saves pending and only a fresh exact preview can confirm")
+    func correctedScheduleRequiresFreshPreview() async throws {
+        try await withDatabase { database in
+            let seed = try seedAnnouncement(
+                database, hash: "manual-correction", title: "Class cancellation",
+                summary: "Review the synthetic schedule notice.",
+                courseName: "Synthetic Systems", courseCode: "COMP3001-311"
+            )
+            let meetingID = try seedSIwebCourse(
+                database, code: "COMP3001-311", sourceObjectID: "si-manual",
+                meetingObjectID: "meeting-manual"
+            )
+            let now = Date(timeIntervalSince1970: 100)
+            let coordinator = AcademicSignalCoordinator(
+                database: database, clock: FixedClock(now: now)
+            )
+            _ = await coordinator.process(
+                rawID: seed.rawID, announcementID: seed.announcementID,
+                accountID: seed.accountID, sourceID: "ann-1",
+                contentHash: "manual-correction", input: seed.input
+            )
+            let original = try #require(coordinator.activeSignals().first)
+            #expect(original.targetMeetingID == nil)
+            try coordinator.correct(original.id, correction: .init(
+                category: .courseScheduleChange, keyRequirement: "Do not attend this meeting.",
+                inferredDate: Date(timeIntervalSince1970: 2_000_000_000), isAllDay: false,
+                timeZoneIdentifier: "Asia/Macau", courseID: seed.courseID
+            ))
+
+            let corrected = try #require(coordinator.activeSignals().first)
+            #expect(corrected.confirmationState == .pending)
+            #expect(corrected.targetMeetingID == meetingID)
+            #expect(corrected.audienceResolution == .resolved)
+            #expect(try database.scalarInt("SELECT COUNT(*) FROM outbox_work") == 0)
+            #expect(throws: AIParsingError.invalidTransition) {
+                try coordinator.confirm(corrected.id)
+            }
+            #expect(throws: AIParsingError.invalidTransition) {
+                try coordinator.confirmPreviewed(
+                    corrected.id, targetMeetingID: meetingID,
+                    signalUpdatedAt: corrected.updatedAt.addingTimeInterval(-1)
+                )
+            }
+            #expect(try database.scalarInt("SELECT COUNT(*) FROM outbox_work") == 0)
+
+            try coordinator.confirmPreviewed(
+                corrected.id, targetMeetingID: meetingID, signalUpdatedAt: corrected.updatedAt
+            )
+            let confirmed = try #require(coordinator.activeSignals().first)
+            #expect(confirmed.confirmationState == .corrected)
+            #expect(try database.query("SELECT object_type,object_id FROM outbox_work")
+                .first?.string("object_type") == "course_meeting")
+            #expect(try database.query("SELECT object_type,object_id FROM outbox_work")
+                .first?.string("object_id") == meetingID.uuidString)
         }
     }
 
@@ -240,6 +321,63 @@ struct AcademicSignalTests {
         #expect(validationCategory(injectedExtra) == .rootUnknownKey)
     }
 
+    @Test("Schedule targets require an exact section, date role, meeting identity, and date")
+    func scheduleTargetContract() throws {
+        let mondayID = UUID(), fridayID = UUID()
+        let monday = Date(timeIntervalSince1970: 2_000_000_000)
+        let friday = monday.addingTimeInterval(4 * 86_400)
+        let input = AcademicSignalInput(
+            announcementID: "local", title: "Synthetic cancellation", visibleTextExcerpt: "Synthetic only",
+            courseName: "Synthetic Systems", courseCode: "COMP3001-311", localSection: "311",
+            meetingCandidates: [
+                .init(meetingID: mondayID, courseCode: "COMP3001-311", section: "311",
+                      startsAt: monday, endsAt: monday.addingTimeInterval(3_600),
+                      timeZoneIdentifier: "Asia/Macau", location: "Room A"),
+                .init(meetingID: fridayID, courseCode: "COMP3001-312", section: "312",
+                      startsAt: friday, endsAt: friday.addingTimeInterval(3_600),
+                      timeZoneIdentifier: "Asia/Macau", location: "Room B")
+            ], locale: "en"
+        )
+        func proposed(role: AcademicScheduleDateRole = .affectedMeeting, section: String? = "311",
+                      target: UUID? = mondayID, date: Date? = monday,
+                      conflicts: [String] = []) -> AcademicSignalSuggestion {
+            AcademicSignalSuggestion(
+                category: .courseScheduleChange, evidence: "Synthetic cancellation",
+                keyRequirement: "Review the change.", inferredDate: date, isAllDay: false,
+                timeZoneIdentifier: date == nil ? nil : "Asia/Macau", confidence: 0.9,
+                reason: "Synthetic contract case.", conflicts: conflicts,
+                scheduleDateRole: role, affectedSection: section,
+                proposedTargetMeetingID: target
+            )
+        }
+
+        #expect(AcademicScheduleTargetResolver.resolve(signal: proposed(), input: input) == mondayID)
+        #expect(AcademicScheduleTargetResolver.resolve(
+            signal: proposed(date: friday), input: input
+        ) == nil)
+        #expect(AcademicScheduleTargetResolver.resolve(
+            signal: proposed(section: "312"), input: input
+        ) == nil)
+        #expect(AcademicScheduleTargetResolver.resolve(
+            signal: proposed(role: .makeupOption, section: nil, target: nil, date: friday), input: input
+        ) == nil)
+        #expect(AcademicScheduleTargetResolver.resolve(
+            signal: proposed(conflicts: ["Synthetic ambiguity"]), input: input
+        ) == nil)
+
+        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
+        let exact = try encoder.encode(AcademicSignalProviderResponse(
+            primaryCategory: .courseScheduleChange, signals: [proposed()]
+        ))
+        #expect(try AcademicSignalOutputValidator.decode(exact, meetingInput: input).signals.count == 1)
+        let wrongDate = try encoder.encode(AcademicSignalProviderResponse(
+            primaryCategory: .courseScheduleChange, signals: [proposed(date: friday)]
+        ))
+        #expect(throws: AcademicSignalValidationError.invalidScheduleTarget) {
+            try AcademicSignalOutputValidator.decode(wrongDate, meetingInput: input)
+        }
+    }
+
     @Test("Validator failures use only fixed privacy-safe categories")
     func fixedValidatorFailureTaxonomy() {
         let cases: [(String, AcademicSignalValidationError)] = [
@@ -312,9 +450,10 @@ struct AcademicSignalTests {
         #expect(text.contains("\"tool_choice\":\"none\""))
         #expect(text.contains("\"thinking\":{\"type\":\"disabled\"}"))
         #expect(text.contains("\"stream\":false"))
-        #expect(text.contains("complete RFC 3339 timestamp with a numeric UTC offset"))
-        #expect(text.contains("2026-09-12T09:00:00+08:00"))
-        #expect(text.contains("inferredDate null, isAllDay false, and timeZoneIdentifier null"))
+        #expect(text.contains("complete RFC 3339 timestamp with numeric UTC offset"))
+        #expect(text.contains("scheduleDateRole"))
+        #expect(text.contains("affected_meeting"))
+        #expect(text.contains("targetMeetingID must exactly equal that candidate meetingID"))
         #expect(!text.contains("secret-source-id"))
         #expect(!text.contains("http://"))
         #expect(!text.contains("https://"))
@@ -532,15 +671,17 @@ struct AcademicSignalTests {
     }
 
     private func seedAnnouncement(
-        _ database: SQLiteDatabase, hash: String, title: String, summary: String
+        _ database: SQLiteDatabase, hash: String, title: String, summary: String,
+        courseName: String = "Synthetic Course", courseCode: String = "SYN"
     ) throws -> (rawID: UUID, announcementID: UUID, accountID: String, courseID: UUID, input: AcademicSignalInput) {
         let rawID = UUID(), announcementID = UUID(), accountID = UUID().uuidString, courseID = UUID()
         try database.execute(
             "INSERT INTO source_accounts(id,source_kind,instance_url,display_name,authorization_state,capabilities_json,created_at,updated_at) VALUES(?,?,?,?,?,?,1,1)",
             bindings: [.text(accountID), .text("Canvas"), .text("https://canvas.invalid"), .text("Synthetic"), .text("authorized"), .text("{}")] )
         try database.execute(
-            "INSERT INTO courses(id,source_account_id,source_object_id,name,code,term,time_zone,source_state,first_seen_at,last_seen_at) VALUES(?,?,?,'Synthetic Course','SYN','','Asia/Macau','active',1,1)",
-            bindings: [.text(courseID.uuidString), .text(accountID), .text("course-1")])
+            "INSERT INTO courses(id,source_account_id,source_object_id,name,code,term,time_zone,source_state,first_seen_at,last_seen_at) VALUES(?,?,?,?,?,'','Asia/Macau','active',1,1)",
+            bindings: [.text(courseID.uuidString), .text(accountID), .text("course-1"),
+                .text(courseName), .text(courseCode)])
         try database.execute(
             "INSERT INTO announcements(id,source_account_id,source_object_id,course_id,title,published_at,summary,content_hash,source_state,first_seen_at,last_seen_at) VALUES(?,?,?,?,?,1,?,?, 'active',1,1)",
             bindings: [.text(announcementID.uuidString), .text(accountID), .text("ann-1"), .text(courseID.uuidString), .text(title), .text(summary), .text(hash)])
@@ -549,7 +690,7 @@ struct AcademicSignalTests {
             bindings: [.text(rawID.uuidString), .text(accountID), .text(hash), .blob(Data("{}".utf8))])
         return (rawID, announcementID, accountID, courseID, AcademicSignalSanitizer.input(
             announcementID: announcementID.uuidString, title: title, body: summary,
-            courseName: "Synthetic Course", locale: "en"
+            courseName: courseName, courseCode: courseCode, locale: "en"
         ))
     }
 
@@ -562,7 +703,8 @@ struct AcademicSignalTests {
             bindings: [.text(accountID), .text("SIweb"), .text("https://siweb.invalid/\(sourceObjectID)"), .text("Synthetic SIweb"), .text("authorized"), .text("{}")] )
         try database.execute(
             "INSERT INTO courses(id,source_account_id,source_object_id,name,code,term,time_zone,source_state,first_seen_at,last_seen_at) VALUES(?,?,?,?,?,'','Asia/Macau','active',1,1)",
-            bindings: [.text(courseID.uuidString), .text(accountID), .text(sourceObjectID), .text("Synthetic Course"), .text(code)])
+            bindings: [.text(courseID.uuidString), .text(accountID), .text(sourceObjectID),
+                .text("Synthetic Systems"), .text(code)])
         try database.execute(
             "INSERT INTO course_meetings(id,course_id,source_object_id,starts_at,ends_at,is_all_day,original_time_zone,location,source_state) VALUES(?,?,?,?,?,0,'Asia/Macau','Room A','active')",
             bindings: [.text(meetingID.uuidString), .text(courseID.uuidString), .text(meetingObjectID), .real(2_000_000_000), .real(2_000_003_600)])

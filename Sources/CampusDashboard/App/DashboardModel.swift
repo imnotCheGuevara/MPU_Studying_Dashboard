@@ -578,7 +578,7 @@ final class DashboardModel: ObservableObject {
 
     func previewAcademicSignal(_ id: UUID) async {
         guard let calendarService else {
-            confirmAcademicSignal(id)
+            aiMessage = "Calendar preview is required before a course schedule change can be confirmed."
             return
         }
         do { calendarChangePreview = try await calendarService.previewAcademicSignal(signalID: id) }
@@ -588,7 +588,21 @@ final class DashboardModel: ObservableObject {
     func confirmCalendarChangePreview() {
         guard let preview = calendarChangePreview else { return }
         calendarChangePreview = nil
-        confirmAcademicSignal(preview.signalID)
+        do {
+            if let targetMeetingID = preview.targetMeetingID {
+                try academicSignalCoordinator?.confirmPreviewed(
+                    preview.signalID, targetMeetingID: targetMeetingID,
+                    signalUpdatedAt: preview.signalUpdatedAt
+                )
+            } else {
+                try academicSignalCoordinator?.confirm(preview.signalID)
+            }
+            recordAcademicHandling(id: preview.signalID, action: "confirm")
+            refreshAIConfiguration()
+        } catch {
+            aiMessage = "This preview is stale or its SIweb meeting is no longer unique. No Calendar event was changed."
+            return
+        }
         guard let calendarService else { return }
         Task {
             do {

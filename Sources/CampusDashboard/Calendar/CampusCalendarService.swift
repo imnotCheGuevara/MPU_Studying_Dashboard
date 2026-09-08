@@ -121,7 +121,8 @@ actor CampusCalendarService: CalendarService {
         guard let row = try database.query(
             """
             SELECT s.*,a.title AS announcement_title,c.name AS course_name,c.code AS course_code,
-                   m.starts_at AS meeting_start,m.ends_at AS meeting_end
+                   m.starts_at AS meeting_start,m.ends_at AS meeting_end,
+                   m.is_all_day AS meeting_is_all_day,m.source_state AS meeting_state
             FROM academic_signals s JOIN announcements a ON a.id=s.announcement_id
             LEFT JOIN courses c ON c.id=COALESCE(s.course_id,a.course_id)
             LEFT JOIN course_meetings m ON m.id=s.target_meeting_id WHERE s.id=?
@@ -130,6 +131,30 @@ actor CampusCalendarService: CalendarService {
 
         let category = AcademicSignalCategory(rawValue: row.string("adopted_category")
             ?? row.string("category") ?? "other") ?? .other
+        let targetMeetingID = row.string("target_meeting_id").flatMap(UUID.init(uuidString:))
+        if category == .courseScheduleChange {
+            guard row.int("is_active") == 1,
+                  row.string("confirmation_state") == AcademicSignalConfirmationState.pending.rawValue,
+                  row.string("audience_resolution") == AcademicAudienceResolution.resolved.rawValue,
+                  row.string("meeting_state") == "active",
+                  let targetMeetingID,
+                  let courseID = row.string("course_id").flatMap(UUID.init(uuidString:)),
+                  let date = row.double("adopted_date").map(Date.init(timeIntervalSince1970:))
+                    ?? row.double("inferred_date").map(Date.init(timeIntervalSince1970:)),
+                  try AcademicScheduleTargetResolver.revalidate(
+                    database: database, courseID: courseID, date: date,
+                    isAllDay: row.int("adopted_is_all_day").map { $0 == 1 }
+                        ?? (row.int("is_all_day") == 1),
+                    dateRole: row.string("schedule_date_role")
+                        .flatMap(AcademicScheduleDateRole.init(rawValue:)),
+                    affectedSection: row.string("affected_section"),
+                    proposedTarget: row.string("proposed_target_meeting_id")
+                        .flatMap(UUID.init(uuidString:)),
+                    expectedTarget: targetMeetingID
+                  ) == targetMeetingID else {
+                throw CampusCalendarError.unconfirmedInferredDate
+            }
+        }
         let words = ((row.string("evidence") ?? "") + " "
             + (row.string("adopted_key_requirement") ?? row.string("key_requirement") ?? "")).lowercased()
         let isCancellation = category == .courseScheduleChange
@@ -140,14 +165,15 @@ actor CampusCalendarService: CalendarService {
         case .examTime: .exam
         case .other: .assignmentDeadline
         }
-        let targetMeeting = row.string("target_meeting_id")
+        let targetMeeting = targetMeetingID?.uuidString
         let objectType = targetMeeting == nil ? "academic_signal" : "course_meeting"
         let objectID = targetMeeting ?? signalID.uuidString
         let binding = try persistence.binding(objectType: objectType, objectID: objectID)
         let operation: CalendarPreviewOperation = isCancellation ? .cancel : (binding == nil ? .create : .update)
-        let start = row.double("adopted_date").map(Date.init(timeIntervalSince1970:))
-            ?? row.double("inferred_date").map(Date.init(timeIntervalSince1970:))
-            ?? row.double("meeting_start").map(Date.init(timeIntervalSince1970:))
+        let start = category == .courseScheduleChange
+            ? row.double("meeting_start").map(Date.init(timeIntervalSince1970:))
+            : row.double("adopted_date").map(Date.init(timeIntervalSince1970:))
+                ?? row.double("inferred_date").map(Date.init(timeIntervalSince1970:))
         let existingMeetingStart = row.double("meeting_start").map(Date.init(timeIntervalSince1970:))
         let existingMeetingEnd = row.double("meeting_end").map(Date.init(timeIntervalSince1970:))
         let duration: TimeInterval
@@ -165,12 +191,19 @@ actor CampusCalendarService: CalendarService {
         let course = [row.string("course_code"), row.string("course_name")]
             .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
         return CalendarChangePreview(
-            id: UUID(), signalID: signalID, operation: operation,
+            id: UUID(), signalID: signalID, targetMeetingID: targetMeetingID,
+            signalUpdatedAt: Date(timeIntervalSince1970: row.double("updated_at") ?? 0),
+            operation: operation,
             calendarTitle: identity.calendarTitle,
             courseTitle: course.isEmpty ? "Unassigned course" : course,
             semantic: semantic, startsAt: start, endsAt: start?.addingTimeInterval(duration),
-            isAllDay: row.int("adopted_is_all_day") == 1 || row.int("is_all_day") == 1,
-            affectedBoundEvent: binding == nil ? "No existing bound event" : "Existing app-owned bound event",
+            isAllDay: category == .courseScheduleChange
+                ? row.int("meeting_is_all_day") == 1
+                : row.int("adopted_is_all_day").map { $0 == 1 }
+                    ?? (row.int("is_all_day") == 1),
+            affectedBoundEvent: binding == nil
+                ? "Exact SIweb meeting (not yet bound)"
+                : "Exact app-owned SIweb meeting event",
             undoEffect: binding == nil
                 ? "Undo removes the app-owned event created from this confirmation."
                 : "Undo restores the prior app-owned bound event on reconciliation.",
@@ -185,10 +218,40 @@ actor CampusCalendarService: CalendarService {
     @discardableResult
     func reconcileAcademicSignal(signalID: UUID) async throws -> CalendarCommandResult {
         guard let row = try database.query(
-            "SELECT target_meeting_id,confirmation_state FROM academic_signals WHERE id=? AND is_active=1",
+            "SELECT * FROM academic_signals WHERE id=? AND is_active=1",
             bindings: [.text(signalID.uuidString)]
         ).first else { throw CampusCalendarError.objectMissing }
-        if let meetingID = row.string("target_meeting_id") {
+        let category = AcademicSignalCategory(rawValue:
+            row.string("adopted_category") ?? row.string("category") ?? "other"
+        ) ?? .other
+        if category == .courseScheduleChange {
+            // Schedule changes never own standalone Calendar events. Clean up a
+            // legacy one before reconciling only the exact SIweb meeting target.
+            let cleanupResult = try await apply([
+                .removeBoundEvent(objectType: "academic_signal", objectID: signalID.uuidString)
+            ]).first
+            let state = row.string("confirmation_state") ?? "pending"
+            guard ["confirmed", "corrected"].contains(state),
+                  row.string("audience_resolution") == AcademicAudienceResolution.resolved.rawValue,
+                  let meetingID = row.string("target_meeting_id"),
+                  let meetingUUID = UUID(uuidString: meetingID),
+                  let courseID = row.string("course_id").flatMap(UUID.init(uuidString:)),
+                  let date = row.double("adopted_date").map(Date.init(timeIntervalSince1970:))
+                    ?? row.double("inferred_date").map(Date.init(timeIntervalSince1970:)),
+                  try AcademicScheduleTargetResolver.revalidate(
+                    database: database, courseID: courseID, date: date,
+                    isAllDay: row.int("adopted_is_all_day").map { $0 == 1 }
+                        ?? (row.int("is_all_day") == 1),
+                    dateRole: row.string("schedule_date_role")
+                        .flatMap(AcademicScheduleDateRole.init(rawValue:)),
+                    affectedSection: row.string("affected_section"),
+                    proposedTarget: row.string("proposed_target_meeting_id")
+                        .flatMap(UUID.init(uuidString:)),
+                    expectedTarget: meetingUUID
+                  ) == meetingUUID else {
+                guard let result = cleanupResult else { throw CampusCalendarError.objectMissing }
+                return result
+            }
             guard let result = try await apply([
                 .upsert(objectType: "course_meeting", objectID: meetingID)
             ]).first else { throw CampusCalendarError.objectMissing }
@@ -513,20 +576,46 @@ actor CampusCalendarService: CalendarService {
         var title = code.isEmpty ? courseName : "\(code) · \(courseName)"
         var effectiveStart = startsAt
         var effectiveEnd = endsAt
-        let change = try database.query(
+        let changes = try database.query(
             """
             SELECT s.*,a.source_url AS announcement_url FROM academic_signals s
             JOIN announcements a ON a.id=s.announcement_id
             WHERE s.target_meeting_id=? AND s.is_active=1
               AND s.confirmation_state IN ('confirmed','corrected')
-            ORDER BY s.updated_at DESC LIMIT 1
+              AND s.audience_resolution='resolved'
+              AND COALESCE(s.adopted_category,s.category)='course_schedule_change'
+            ORDER BY s.updated_at DESC
             """, bindings: [.text(objectID)]
-        ).first
+        )
+        var change: SQLiteRow?
+        for candidate in changes {
+            guard let meetingID = UUID(uuidString: objectID),
+                  let courseID = candidate.string("course_id").flatMap(UUID.init(uuidString:)),
+                  let date = candidate.double("adopted_date").map(Date.init(timeIntervalSince1970:))
+                    ?? candidate.double("inferred_date").map(Date.init(timeIntervalSince1970:)),
+                  try AcademicScheduleTargetResolver.revalidate(
+                    database: database, courseID: courseID, date: date,
+                    isAllDay: candidate.int("adopted_is_all_day").map { $0 == 1 }
+                        ?? (candidate.int("is_all_day") == 1),
+                    dateRole: candidate.string("schedule_date_role")
+                        .flatMap(AcademicScheduleDateRole.init(rawValue:)),
+                    affectedSection: candidate.string("affected_section"),
+                    proposedTarget: candidate.string("proposed_target_meeting_id")
+                        .flatMap(UUID.init(uuidString:)),
+                    expectedTarget: meetingID
+                  ) != nil else { continue }
+            change = candidate
+            break
+        }
+        var signalCancelled = false
         if let change {
             let words = ((change.string("evidence") ?? "") + " "
                 + (change.string("adopted_key_requirement") ?? change.string("key_requirement") ?? "")).lowercased()
             let cancelled = ["cancel", "取消", "停课"].contains { words.contains($0) }
-            if cancelled { title = "[CANCELLED] · \(title)" }
+            if cancelled {
+                title = "[CANCELLED] · \(title)"
+                signalCancelled = true
+            }
             else if let adopted = change.double("adopted_date").map(Date.init(timeIntervalSince1970:)) {
                 effectiveStart = adopted
                 effectiveEnd = adopted.addingTimeInterval(endsAt.timeIntervalSince(startsAt))
@@ -538,7 +627,7 @@ actor CampusCalendarService: CalendarService {
             isAllDay: row.int("is_all_day") == 1, location: row.string("location"),
             sourceURL: row.string("course_url").flatMap(URL.init(string:)), ownershipMarker: ""
         )
-        return EventPayload(draft: draft, isCancelled: sourceState == "cancelled")
+        return EventPayload(draft: draft, isCancelled: sourceState == "cancelled" || signalCancelled)
     }
 
     private func academicSignalDraft(objectID: String, identity: ManagedCalendarIdentity) throws -> EventPayload {
@@ -556,6 +645,9 @@ actor CampusCalendarService: CalendarService {
             throw CampusCalendarError.unconfirmedInferredDate
         }
         let category = row.string("adopted_category") ?? row.string("category") ?? "other"
+        guard category != AcademicSignalCategory.courseScheduleChange.rawValue else {
+            throw CampusCalendarError.unconfirmedInferredDate
+        }
         let marker = category == "exam_time" ? "[EXAM]" : "[DEADLINE]"
         let rawTitle = row.string("announcement_title") ?? row.string("adopted_key_requirement") ?? "Academic update"
         let code = row.string("course_code") ?? ""

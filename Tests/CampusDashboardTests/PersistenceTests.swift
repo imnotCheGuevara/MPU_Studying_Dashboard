@@ -172,6 +172,9 @@ struct PersistenceTests {
             try database.execute(
                 "INSERT INTO ai_settings(singleton_key,enabled,provider_kind,updated_at) VALUES(1,0,'external',0)"
             )
+            try database.execute(
+                "CREATE TABLE course_meetings (id TEXT PRIMARY KEY, course_id TEXT)"
+            )
             try database.execute("PRAGMA user_version = 8")
         }
         let upgraded = try SQLiteDatabase(path: path)
@@ -189,6 +192,7 @@ struct PersistenceTests {
             let database = try SQLiteDatabase(path: path, migrate: false)
             try database.execute("CREATE TABLE raw_source_records(id TEXT PRIMARY KEY)")
             try database.execute("CREATE TABLE announcements(id TEXT PRIMARY KEY)")
+            try database.execute("CREATE TABLE course_meetings(id TEXT PRIMARY KEY)")
             try database.execute("PRAGMA user_version = 9")
         }
         let upgraded = try SQLiteDatabase(path: path)
@@ -197,6 +201,102 @@ struct PersistenceTests {
             "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'academic_signal%'"
         ).compactMap { $0.string("name") })
         #expect(names == ["academic_signal_analyses", "academic_signals", "academic_signal_audit"])
+    }
+
+    @Test("Version 13 fails closed stale confirmed schedule changes without losing corrections")
+    func versionThirteenScheduleSafetyUpgrade() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("campus-dashboard-v13-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let path = directory.appendingPathComponent("migration.sqlite3").path
+        defer { try? FileManager.default.removeItem(at: directory) }
+        do {
+            let database = try SQLiteDatabase(path: path, migrate: false)
+            try database.execute(
+                """
+                CREATE TABLE academic_signals (
+                  id TEXT PRIMARY KEY, category TEXT NOT NULL, adopted_category TEXT,
+                  adopted_date REAL, adopted_is_all_day INTEGER, is_active INTEGER NOT NULL,
+                  confirmation_state TEXT NOT NULL, target_meeting_id TEXT,
+                  audience_resolution TEXT NOT NULL, updated_at REAL NOT NULL
+                )
+                """
+            )
+            try database.execute(
+                """
+                CREATE TABLE academic_signal_audit (
+                  id TEXT PRIMARY KEY, signal_id TEXT NOT NULL, action TEXT NOT NULL,
+                  previous_state TEXT NOT NULL, new_state TEXT NOT NULL,
+                  correction_json BLOB, occurred_at REAL NOT NULL
+                )
+                """
+            )
+            try database.execute(
+                """
+                CREATE TABLE calendar_bindings (
+                  object_type TEXT NOT NULL, object_id TEXT NOT NULL,
+                  sync_state TEXT NOT NULL
+                )
+                """
+            )
+            try database.execute(
+                """
+                CREATE TABLE outbox_work (
+                  id TEXT PRIMARY KEY, kind TEXT NOT NULL,
+                  deduplication_key TEXT NOT NULL UNIQUE, object_type TEXT NOT NULL,
+                  object_id TEXT NOT NULL, payload BLOB NOT NULL, state TEXT NOT NULL,
+                  attempt_count INTEGER NOT NULL, available_at REAL NOT NULL,
+                  created_at REAL NOT NULL, updated_at REAL NOT NULL,
+                  last_error_category TEXT
+                )
+                """
+            )
+            try database.execute(
+                """
+                INSERT INTO academic_signals VALUES
+                  ('signal','exam_time','course_schedule_change',2000,0,1,'corrected',NULL,'no_target',1),
+                  ('signal-targetful','course_schedule_change',NULL,3000,0,1,'confirmed',
+                   '40000000-0000-0000-0000-000000000003','resolved',1)
+                """
+            )
+            try database.execute(
+                "INSERT INTO calendar_bindings VALUES('course_meeting','40000000-0000-0000-0000-000000000003','bound')"
+            )
+            try database.execute("PRAGMA user_version = 13")
+        }
+
+        let upgraded = try SQLiteDatabase(path: path)
+        let signal = try #require(upgraded.query(
+            "SELECT * FROM academic_signals WHERE id='signal'"
+        ).first)
+        #expect(signal.string("confirmation_state") == "pending")
+        #expect(signal.string("adopted_category") == "course_schedule_change")
+        #expect(signal.double("adopted_date") == 2_000)
+        #expect(signal.string("target_meeting_id") == nil)
+        #expect(signal.string("audience_resolution") == "pending_review")
+        let formerlyTargetful = try #require(upgraded.query(
+            "SELECT * FROM academic_signals WHERE id='signal-targetful'"
+        ).first)
+        #expect(formerlyTargetful.string("confirmation_state") == "pending")
+        #expect(formerlyTargetful.string("target_meeting_id") == nil)
+        #expect(formerlyTargetful.string("audience_resolution") == "pending_review")
+        let auditIDs = try upgraded.query(
+            "SELECT id FROM academic_signal_audit WHERE action='target_invalidated'"
+        ).compactMap { $0.string("id") }
+        #expect(auditIDs.count == 2)
+        #expect(auditIDs.allSatisfy { UUID(uuidString: $0) != nil })
+        let recovery = try #require(upgraded.query(
+            "SELECT object_type,object_id,payload,state FROM outbox_work"
+        ).first)
+        #expect(recovery.string("object_type") == "course_meeting")
+        #expect(recovery.string("object_id") == "40000000-0000-0000-0000-000000000003")
+        #expect(recovery.string("state") == "pending")
+        let payload = try #require(recovery.data("payload"))
+        #expect(try JSONDecoder().decode(OutboxEnvelope.self, from: payload)
+            == .calendarReconcile(
+                objectType: "course_meeting",
+                objectID: "40000000-0000-0000-0000-000000000003"
+            ))
     }
 
     @Test("Source account CRUD is durable")
@@ -336,6 +436,8 @@ struct PersistenceTests {
     }
 
     private func createLegacyAIParseTable(_ database: SQLiteDatabase) throws {
+        // Later additive migrations reparse the Stage 11 meeting foreign key.
+        try database.execute("CREATE TABLE IF NOT EXISTS course_meetings(id TEXT PRIMARY KEY)")
         try database.execute(
             """
             CREATE TABLE ai_parse_results (

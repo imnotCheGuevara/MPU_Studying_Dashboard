@@ -68,7 +68,7 @@ struct SQLiteRow: Sendable {
 }
 
 final class SQLiteDatabase: @unchecked Sendable {
-    static let currentSchemaVersion = 13
+    static let currentSchemaVersion = 14
 
     private let handle: OpaquePointer
     private let lock = NSRecursiveLock()

@@ -489,6 +489,77 @@ struct CalendarIntegrationTests {
         }
     }
 
+    @Test("Schedule cancellation preview is read-only and only changes the exact SIweb meeting")
+    func scheduleCancellationExactPreviewGate() async throws {
+        try await withDatabase { database in
+            let dedicated = calendar("dedicated", "Campus Dashboard", localSource)
+            let store = FakeCalendarEventStore(
+                status: .fullAccess, sources: [localSource], calendars: [dedicated]
+            )
+            let service = CampusCalendarService(database: database, store: store)
+            _ = try await service.selectDedicatedCalendar(calendarIdentifier: "dedicated")
+            let fixture = try insertAcademicScheduleCancellation(database)
+
+            _ = try await service.apply([
+                .upsert(objectType: "course_meeting", objectID: fixture.meetingID.uuidString)
+            ])
+            #expect(await store.eventsInCalendar("dedicated").count == 1)
+            #expect(await store.saveCallCount() == 1)
+
+            let preview = try await service.previewAcademicSignal(signalID: fixture.signalID)
+            #expect(preview.operation == .cancel)
+            #expect(preview.targetMeetingID == fixture.meetingID)
+            #expect(preview.startsAt == Date(timeIntervalSince1970: 2_000_000_000))
+            #expect(await store.eventsInCalendar("dedicated").count == 1)
+            #expect(await store.saveCallCount() == 1)
+
+            _ = try await service.reconcileAcademicSignal(signalID: fixture.signalID)
+            #expect(await store.eventsInCalendar("dedicated").count == 1)
+            #expect(await store.saveCallCount() == 1)
+
+            let coordinator = AcademicSignalCoordinator(database: database)
+            try coordinator.confirmPreviewed(
+                fixture.signalID, targetMeetingID: fixture.meetingID,
+                signalUpdatedAt: preview.signalUpdatedAt
+            )
+            _ = try await service.reconcileAcademicSignal(signalID: fixture.signalID)
+            #expect(await store.eventsInCalendar("dedicated").isEmpty)
+            #expect(try database.scalarInt(
+                "SELECT COUNT(*) AS value FROM calendar_bindings WHERE object_type='academic_signal'"
+            ) == 0)
+
+            try coordinator.undo(fixture.signalID)
+            _ = try await service.apply([
+                .upsert(objectType: "course_meeting", objectID: fixture.meetingID.uuidString)
+            ])
+            #expect(await store.eventsInCalendar("dedicated").count == 1)
+            #expect(await store.saveCallCount() == 2)
+
+            try database.execute(
+                """
+                UPDATE academic_signals
+                SET confirmation_state='confirmed',target_meeting_id=?,audience_resolution='resolved',
+                    schedule_date_role=NULL,affected_section=NULL,proposed_target_meeting_id=NULL
+                WHERE id=?
+                """, bindings: [.text(fixture.meetingID.uuidString), .text(fixture.signalID.uuidString)]
+            )
+            _ = try await service.reconcileAcademicSignal(signalID: fixture.signalID)
+            #expect(await store.eventsInCalendar("dedicated").count == 1)
+            #expect(await store.saveCallCount() == 2)
+
+            try database.execute(
+                "UPDATE academic_signals SET confirmation_state='confirmed',target_meeting_id=NULL,audience_resolution='no_target' WHERE id=?",
+                bindings: [.text(fixture.signalID.uuidString)]
+            )
+            _ = try await service.reconcileAcademicSignal(signalID: fixture.signalID)
+            #expect(await store.eventsInCalendar("dedicated").count == 1)
+            #expect(await store.saveCallCount() == 2)
+            #expect(try database.scalarInt(
+                "SELECT COUNT(*) AS value FROM calendar_bindings WHERE object_type='academic_signal'"
+            ) == 0)
+        }
+    }
+
     private func calendar(
         _ id: String, _ title: String, _ source: CalendarSourceDescriptor, writable: Bool = true
     ) -> CalendarDescriptor {
@@ -580,6 +651,54 @@ struct CalendarIntegrationTests {
         )
     }
 
+    private func insertAcademicScheduleCancellation(
+        _ database: SQLiteDatabase
+    ) throws -> (signalID: UUID, meetingID: UUID) {
+        let canvasCourseID = UUID(uuidString: "40000000-0000-0000-0000-000000000001")!
+        let siwebCourseID = UUID(uuidString: "40000000-0000-0000-0000-000000000002")!
+        let meetingID = UUID(uuidString: "40000000-0000-0000-0000-000000000003")!
+        let announcementID = UUID(uuidString: "40000000-0000-0000-0000-000000000004")!
+        let rawID = UUID(uuidString: "40000000-0000-0000-0000-000000000005")!
+        let analysisID = UUID(uuidString: "40000000-0000-0000-0000-000000000006")!
+        let signalID = UUID(uuidString: "40000000-0000-0000-0000-000000000007")!
+        try database.execute(
+            "INSERT INTO source_accounts(id,source_kind,instance_url,display_name,authorization_state,created_at,updated_at) VALUES('canvas-account','Canvas','https://canvas.invalid','Synthetic Canvas','connected',1,1),('siweb-account','SIweb','https://siweb.invalid','Synthetic SIweb','connected',1,1)"
+        )
+        try database.execute(
+            "INSERT INTO courses(id,source_account_id,source_object_id,name,code,term,time_zone,source_state,first_seen_at,last_seen_at) VALUES(?,'canvas-account','canvas-course','Synthetic Systems','COMP3001-311','Term','Asia/Macau','active',1,1),(?,'siweb-account','siweb-course','Synthetic Systems','COMP3001-311','Term','Asia/Macau','active',1,1)",
+            bindings: [.text(canvasCourseID.uuidString), .text(siwebCourseID.uuidString)]
+        )
+        try database.execute(
+            "INSERT INTO academic_course_mappings(id,canvas_course_id,siweb_course_id,section_key,origin,is_active,created_at,updated_at) VALUES('40000000-0000-0000-0000-000000000008',?,?,'COMP3001::311','manual',1,1,1)",
+            bindings: [.text(canvasCourseID.uuidString), .text(siwebCourseID.uuidString)]
+        )
+        try database.execute(
+            "INSERT INTO course_meetings(id,course_id,source_object_id,starts_at,ends_at,original_time_zone,location,source_state) VALUES(?,?, 'siweb-meeting',2000000000,2000003600,'Asia/Macau','Synthetic Room','active')",
+            bindings: [.text(meetingID.uuidString), .text(siwebCourseID.uuidString)]
+        )
+        try database.execute(
+            "INSERT INTO announcements(id,source_account_id,source_object_id,course_id,title,published_at,summary,content_hash,source_state,first_seen_at,last_seen_at) VALUES(?,'canvas-account','announcement-source',?,'Synthetic schedule update',1,'Synthetic cancellation fixture','hash','active',1,1)",
+            bindings: [.text(announcementID.uuidString), .text(canvasCourseID.uuidString)]
+        )
+        try database.execute(
+            "INSERT INTO raw_source_records(id,source_account_id,object_type,source_object_id,fetch_batch_id,content_hash,payload,fetched_at) VALUES(?,'canvas-account','announcement','announcement-source','batch','hash',X'7B7D',1)",
+            bindings: [.text(rawID.uuidString)]
+        )
+        try database.execute(
+            "INSERT INTO academic_signal_analyses(id,raw_source_record_id,announcement_id,source_account_id,source_object_id,content_hash,primary_category,status,provider,model,prompt_version,schema_version,created_at,updated_at) VALUES(?,?,?,'canvas-account','announcement-source','hash','course_schedule_change','analyzed','synthetic','local','v4','v4',1,1)",
+            bindings: [.text(analysisID.uuidString), .text(rawID.uuidString), .text(announcementID.uuidString)]
+        )
+        try database.execute(
+            "INSERT INTO academic_signals(id,analysis_id,announcement_id,source_account_id,source_object_id,category,evidence,key_requirement,inferred_date,is_all_day,time_zone_identifier,confidence,reason,provider,model,prompt_version,schema_version,confirmation_state,course_id,target_meeting_id,audience_resolution,schedule_date_role,affected_section,proposed_target_meeting_id,created_at,updated_at) VALUES(?,?,?,'canvas-account','announcement-source','course_schedule_change','Synthetic cancellation','Class cancelled',2000000000,0,'Asia/Macau',0.9,'Exact synthetic fixture','synthetic','local','v4','v4','pending',?,?,'resolved','affected_meeting','311',?,1,1)",
+            bindings: [
+                .text(signalID.uuidString), .text(analysisID.uuidString),
+                .text(announcementID.uuidString), .text(canvasCourseID.uuidString),
+                .text(meetingID.uuidString), .text(meetingID.uuidString)
+            ]
+        )
+        return (signalID, meetingID)
+    }
+
     private func insertMeeting(_ database: SQLiteDatabase) throws {
         try database.execute(
             """
@@ -613,6 +732,7 @@ private actor FakeCalendarEventStore: CalendarEventStore {
     private var calendarValues: [CalendarDescriptor]
     private var eventValues: [String: CalendarStoredEvent] = [:]
     private var nextEventID = 1
+    private var saveCalls = 0
 
     init(
         status: CalendarAccessStatus,
@@ -691,6 +811,7 @@ private actor FakeCalendarEventStore: CalendarEventStore {
             identifier = "event-\(nextEventID)"
             nextEventID += 1
         }
+        saveCalls += 1
         let externalIdentifier = existingEventIdentifier.flatMap { eventValues[$0]?.externalIdentifier }
             ?? "external-\(identifier)"
         let event = CalendarStoredEvent(
@@ -726,6 +847,8 @@ private actor FakeCalendarEventStore: CalendarEventStore {
     func eventsInCalendar(_ identifier: String) -> [CalendarStoredEvent] {
         eventValues.values.filter { $0.calendarIdentifier == identifier }
     }
+
+    func saveCallCount() -> Int { saveCalls }
 
     func seedUnrelatedEvent(calendarIdentifier: String) {
         eventValues["unrelated"] = CalendarStoredEvent(

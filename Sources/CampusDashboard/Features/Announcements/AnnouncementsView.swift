@@ -217,12 +217,15 @@ struct AcademicSignalCorrectionSheet: View {
 
     init(model: DashboardModel, target: AcademicCorrectionTarget, completed: @escaping () -> Void) {
         self.model = model; self.target = target; self.completed = completed
-        _category = State(initialValue: target.signal?.category ?? target.analysis?.primaryCategory ?? .courseScheduleChange)
-        _includeDate = State(initialValue: target.signal?.inferredDate != nil)
-        _date = State(initialValue: target.signal?.inferredDate ?? Date())
-        _isAllDay = State(initialValue: target.signal?.isAllDay ?? false)
-        _keyRequirement = State(initialValue: target.signal?.keyRequirement ?? "Review this academic update.")
-        _timeZoneIdentifier = State(initialValue: target.signal?.timeZoneIdentifier ?? TimeZone.current.identifier)
+        _category = State(initialValue: target.signal?.adoptedCategory ?? target.signal?.category
+            ?? target.analysis?.primaryCategory ?? .courseScheduleChange)
+        _includeDate = State(initialValue: (target.signal?.adoptedDate ?? target.signal?.inferredDate) != nil)
+        _date = State(initialValue: target.signal?.adoptedDate ?? target.signal?.inferredDate ?? Date())
+        _isAllDay = State(initialValue: target.signal?.adoptedIsAllDay ?? target.signal?.isAllDay ?? false)
+        _keyRequirement = State(initialValue: target.signal?.adoptedKeyRequirement
+            ?? target.signal?.keyRequirement ?? "Review this academic update.")
+        _timeZoneIdentifier = State(initialValue: target.signal?.adoptedTimeZoneIdentifier
+            ?? target.signal?.timeZoneIdentifier ?? TimeZone.current.identifier)
         _courseID = State(initialValue: target.signal?.courseID ?? target.courseID)
     }
 
@@ -244,7 +247,9 @@ struct AcademicSignalCorrectionSheet: View {
                 Toggle(model.text("All-day"), isOn: $isAllDay)
                 TextField(model.text("Time zone"), text: $timeZoneIdentifier)
             }
-            Text(model.text("A corrected date remains inferred and this save records explicit local confirmation."))
+            Text(model.text(category == .courseScheduleChange
+                ? "Saving this correction does not authorize Calendar. Preview the exact SIweb meeting, then confirm."
+                : "A corrected date remains inferred and this save records explicit local confirmation."))
                 .font(.caption).foregroundStyle(.secondary)
             HStack {
                 Spacer()

@@ -103,6 +103,7 @@ enum CalendarPresentation {
         let confirmedSignals = academicSignals.compactMap { signal -> CalendarEvent? in
             guard [.confirmed, .corrected].contains(signal.confirmationState),
                   signal.targetMeetingID == nil,
+                  (signal.adoptedCategory ?? signal.category) != .courseScheduleChange,
                   let date = signal.adoptedDate ?? signal.inferredDate,
                   let announcement = snapshot.announcements.first(where: { $0.id == signal.announcementID })
             else { return nil }

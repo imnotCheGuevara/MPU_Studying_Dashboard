@@ -81,6 +81,8 @@ enum AcademicEventSemantic: String, Sendable, Equatable {
 struct CalendarChangePreview: Identifiable, Equatable, Sendable {
     let id: UUID
     let signalID: UUID
+    let targetMeetingID: UUID?
+    let signalUpdatedAt: Date
     let operation: CalendarPreviewOperation
     let calendarTitle: String
     let courseTitle: String

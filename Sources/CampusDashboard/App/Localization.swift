@@ -81,6 +81,8 @@ enum Localizer {
         "Correct academic signal": "修正学习信号", "Correct analysis…": "修正分析…", "Category": "分类",
         "Section needs review": "班别需要确认", "Time zone": "时区", "Reset": "重置",
         "A corrected date remains inferred and this save records explicit local confirmation.": "修正后的日期仍是推断日期；保存会记录明确的本地确认。",
+        "Saving this correction does not authorize Calendar. Preview the exact SIweb meeting, then confirm.": "保存此修正不会授权写入日历。请先预览准确的 SIweb 课节，再明确确认。",
+        "Affected section": "受影响班别", "Schedule date role": "课表日期角色",
         "The academic-signal decision could not be saved.": "无法保存学习信号决定。",
         "The academic-signal correction could not be saved.": "无法保存学习信号修正。",
         "deterministic_only": "仅确定性分析", "analyzed": "已分析",

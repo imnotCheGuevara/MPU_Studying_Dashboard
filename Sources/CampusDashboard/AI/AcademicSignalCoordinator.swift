@@ -93,8 +93,8 @@ enum AcademicSignalSanitizer {
 }
 
 final class AcademicSignalCoordinator: @unchecked Sendable {
-    static let promptVersion = "canvas-announcement-signals-v3"
-    static let schemaVersion = "3"
+    static let promptVersion = "canvas-announcement-signals-v4"
+    static let schemaVersion = "4"
 
     private let database: SQLiteDatabase
     private let persistence: AcademicSignalPersistence
@@ -172,7 +172,7 @@ final class AcademicSignalCoordinator: @unchecked Sendable {
             do {
                 try provider.validateAvailability()
                 let data = try await provider.academicSignals(for: scopedInput)
-                let external = try AcademicSignalOutputValidator.decode(data)
+                let external = try AcademicSignalOutputValidator.decode(data, meetingInput: scopedInput)
                 output = merge(deterministic: deterministic, external: external)
                 status = .analyzed
             } catch {
@@ -197,7 +197,7 @@ final class AcademicSignalCoordinator: @unchecked Sendable {
         do {
             let stored = try persistence.saveAnalysis(analysis)
             let records = output.signals.map { suggestion in
-                let target = resolvedMeeting(for: suggestion, input: scopedInput)
+                let target = AcademicScheduleTargetResolver.resolve(signal: suggestion, input: scopedInput)
                 let audience: AcademicAudienceResolution = suggestion.category == .courseScheduleChange
                     ? (target == nil ? .pendingReview : .resolved) : .noTarget
                 return AcademicSignalRecord(
@@ -217,6 +217,9 @@ final class AcademicSignalCoordinator: @unchecked Sendable {
                     decisionOrigin: localRule == nil ? .automated : .localSupervisedRule,
                     personalizationRuleVersion: localRule?.version,
                     targetMeetingID: target, audienceResolution: audience,
+                    scheduleDateRole: suggestion.scheduleDateRole,
+                    affectedSection: suggestion.affectedSection,
+                    proposedTargetMeetingID: suggestion.proposedTargetMeetingID,
                     createdAt: now, updatedAt: now
                 )
             }
@@ -256,6 +259,14 @@ final class AcademicSignalCoordinator: @unchecked Sendable {
                              contentHash: hash, input: input, force: true)
     }
     func confirm(_ id: UUID) throws { try transition(id, action: "confirm", correction: nil) }
+    func confirmPreviewed(
+        _ id: UUID, targetMeetingID: UUID, signalUpdatedAt: Date
+    ) throws {
+        try persistence.confirmPreviewed(
+            id: id, targetMeetingID: targetMeetingID, signalUpdatedAt: signalUpdatedAt,
+            now: clock.now, auditID: ids.next()
+        )
+    }
     func reject(_ id: UUID) throws { try transition(id, action: "reject", correction: nil) }
     func correct(_ id: UUID, correction: AcademicSignalCorrection) throws {
         try transition(id, action: "correct", correction: correction)
@@ -284,7 +295,7 @@ final class AcademicSignalCoordinator: @unchecked Sendable {
         ).first, let canvasID = canvas.string("id"), let code = canvas.string("code") else { return input }
         let reconciliationTime = clock.now
         _ = try CourseReconciliationService(database: database, now: { reconciliationTime }).reconcile()
-        let localCode = CourseIdentityNormalizer.embeddedCode(
+        let canvasCode = CourseIdentityNormalizer.embeddedCode(
             name: canvas.string("name") ?? "", rawCode: code
         ) ?? code
         let mappedIDs = try database.query(
@@ -294,7 +305,7 @@ final class AcademicSignalCoordinator: @unchecked Sendable {
         guard mappedIDs.count == 1 else {
             return AcademicSignalInput(announcementID: input.announcementID, title: input.title,
                 visibleTextExcerpt: input.visibleTextExcerpt, courseName: input.courseName,
-                courseCode: localCode, localSection: nil, meetingCandidates: [], locale: input.locale)
+                courseCode: canvasCode, localSection: nil, meetingCandidates: [], locale: input.locale)
         }
         let rows = try database.query(
             "SELECT m.*,c.code AS course_code FROM course_meetings m JOIN courses c ON c.id=m.course_id WHERE m.course_id=? AND m.source_state='active' ORDER BY m.starts_at LIMIT 24",
@@ -304,22 +315,19 @@ final class AcademicSignalCoordinator: @unchecked Sendable {
             guard let id = row.string("id").flatMap(UUID.init(uuidString:)),
                   let start = row.double("starts_at").map(Date.init(timeIntervalSince1970:)),
                   let end = row.double("ends_at").map(Date.init(timeIntervalSince1970:)) else { return nil }
-            return .init(meetingID: id, courseCode: row.string("course_code") ?? localCode,
-                         section: localCode, startsAt: start, endsAt: end,
+            let siwebCode = row.string("course_code") ?? ""
+            return .init(meetingID: id, courseCode: siwebCode,
+                         section: CourseIdentityNormalizer.sectionIdentifier(siwebCode),
+                         startsAt: start, endsAt: end,
                          timeZoneIdentifier: row.string("original_time_zone") ?? "Asia/Macau",
                          location: row.string("location") ?? "")
         }
+        let localCode = candidates.first?.courseCode ?? canvasCode
         return AcademicSignalInput(announcementID: input.announcementID, title: input.title,
             visibleTextExcerpt: input.visibleTextExcerpt, courseName: input.courseName ?? canvas.string("name"),
-            courseCode: localCode, localSection: localCode, meetingCandidates: candidates, locale: input.locale)
-    }
-
-    private func resolvedMeeting(for signal: AcademicSignalSuggestion, input: AcademicSignalInput) -> UUID? {
-        guard signal.category == .courseScheduleChange else { return nil }
-        if input.meetingCandidates.count == 1 { return input.meetingCandidates[0].meetingID }
-        guard let date = signal.inferredDate else { return nil }
-        let matches = input.meetingCandidates.filter { abs($0.startsAt.timeIntervalSince(date)) <= 43_200 }
-        return matches.count == 1 ? matches[0].meetingID : nil
+            courseCode: localCode,
+            localSection: CourseIdentityNormalizer.sectionIdentifier(localCode),
+            meetingCandidates: candidates, locale: input.locale)
     }
 
     private func personalizedResponse(
@@ -352,6 +360,11 @@ final class AcademicSignalCoordinator: @unchecked Sendable {
         var result = deterministic.signals
         for signal in external.signals {
             if let index = result.firstIndex(where: { $0.category == signal.category }) {
+                if signal.category == .courseScheduleChange,
+                   result[index].scheduleDateRole != nil {
+                    result.append(signal)
+                    continue
+                }
                 let local = result[index]
                 result[index] = AcademicSignalSuggestion(
                     category: local.category,
@@ -361,7 +374,10 @@ final class AcademicSignalCoordinator: @unchecked Sendable {
                     timeZoneIdentifier: signal.timeZoneIdentifier,
                     confidence: max(local.confidence, signal.confidence),
                     reason: local.reason + " " + signal.reason,
-                    conflicts: signal.conflicts
+                    conflicts: signal.conflicts,
+                    scheduleDateRole: signal.scheduleDateRole,
+                    affectedSection: signal.affectedSection,
+                    proposedTargetMeetingID: signal.proposedTargetMeetingID
                 )
             } else {
                 result.append(signal)

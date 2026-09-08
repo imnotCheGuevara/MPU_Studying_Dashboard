@@ -138,7 +138,7 @@ struct CourseReconciliationTests {
                 "INSERT INTO course_meetings(id,course_id,source_object_id,starts_at,ends_at,original_time_zone,location,source_state) VALUES(?,?,?,1000,4600,'Asia/Macau','Room 1','active')",
                 bindings: [.text(meeting.uuidString), .text(pair.siweb.uuidString), .text("meeting")]
             )
-            try seedScheduleSignal(database, canvasCourse: pair.canvas)
+            try seedScheduleSignal(database, canvasCourse: pair.canvas, proposedMeeting: meeting)
             let service = CourseReconciliationService(database: database, now: { Date(timeIntervalSince1970: 20) })
             let proposal = try #require(service.reconcile().first)
             #expect(try database.query("SELECT target_meeting_id FROM academic_signals").first?.string("target_meeting_id") == nil)
@@ -152,7 +152,7 @@ struct CourseReconciliationTests {
         }
     }
 
-    @Test("Standalone confirmed schedule changes never render as deadlines")
+    @Test("Standalone confirmed schedule changes never render in Schedule")
     func schedulePresentationSemantic() throws {
         let course = UUID(), announcement = UUID(), date = Date(timeIntervalSince1970: 2_000)
         let snapshot = DashboardSnapshot(
@@ -170,9 +170,49 @@ struct CourseReconciliationTests {
             confirmationState: .confirmed, adoptedCategory: nil, adoptedDate: date,
             adoptedIsAllDay: false, courseID: course, createdAt: date, updatedAt: date
         )
-        let event = try #require(CalendarPresentation.events(from: snapshot, academicSignals: [signal]).first)
-        #expect(event.kind == .confirmedScheduleChange)
-        #expect(event.kind != .confirmedInferredDeadline)
+        #expect(CalendarPresentation.events(from: snapshot, academicSignals: [signal]).isEmpty)
+    }
+
+    @Test("A confirmed schedule target that disappears returns to pending with an audit entry")
+    func disappearingTargetFailsClosed() throws {
+        try withDatabase { database in
+            let pair = try seedPair(
+                database, canvasName: "Synthetic Systems COMP3001-311", canvasCode: "Synthetic Systems",
+                siwebName: "Synthetic Systems", siwebCode: "COMP3001-311"
+            )
+            let meeting = UUID()
+            try database.execute(
+                "INSERT INTO course_meetings(id,course_id,source_object_id,starts_at,ends_at,original_time_zone,location,source_state) VALUES(?,?,?,1000,4600,'Asia/Macau','Room 1','active')",
+                bindings: [.text(meeting.uuidString), .text(pair.siweb.uuidString), .text("meeting")]
+            )
+            try seedScheduleSignal(database, canvasCourse: pair.canvas, proposedMeeting: meeting)
+            let service = CourseReconciliationService(
+                database: database, now: { Date(timeIntervalSince1970: 20) }
+            )
+            _ = try service.reconcile()
+            let mapping = try #require(service.decisions().first)
+            if mapping.state != .confirmed { try service.map(mapping.id) }
+            try database.execute(
+                "UPDATE academic_signals SET confirmation_state='confirmed' WHERE target_meeting_id=?",
+                bindings: [.text(meeting.uuidString)]
+            )
+            try database.execute(
+                "UPDATE course_meetings SET source_state='cancelled' WHERE id=?",
+                bindings: [.text(meeting.uuidString)]
+            )
+
+            _ = try service.reconcile()
+
+            let row = try #require(database.query(
+                "SELECT confirmation_state,target_meeting_id,audience_resolution FROM academic_signals"
+            ).first)
+            #expect(row.string("confirmation_state") == "pending")
+            #expect(row.string("target_meeting_id") == nil)
+            #expect(row.string("audience_resolution") == "pending_review")
+            #expect(try database.scalarInt(
+                "SELECT COUNT(*) FROM academic_signal_audit WHERE action='target_invalidated'"
+            ) == 1)
+        }
     }
 
     @Test("Reconciliation controls and schedule-change semantics are bilingual and accessible")
@@ -231,8 +271,15 @@ struct CourseReconciliationTests {
         return (canvas, siweb)
     }
 
-    private func seedScheduleSignal(_ database: SQLiteDatabase, canvasCourse: UUID) throws {
+    private func seedScheduleSignal(
+        _ database: SQLiteDatabase, canvasCourse: UUID, proposedMeeting: UUID
+    ) throws {
         let announcement = UUID(), raw = UUID(), analysis = UUID(), signal = UUID()
+        let meetingCode = try database.query(
+            "SELECT c.code FROM course_meetings m JOIN courses c ON c.id=m.course_id WHERE m.id=?",
+            bindings: [.text(proposedMeeting.uuidString)]
+        ).first?.string("code")
+        let section = try #require(CourseIdentityNormalizer.sectionIdentifier(meetingCode))
         try database.execute(
             "INSERT INTO raw_source_records(id,source_account_id,object_type,source_object_id,fetch_batch_id,content_hash,payload,fetched_at) VALUES(?,'canvas','announcement','ann','batch','hash',X'7B7D',1)",
             bindings: [.text(raw.uuidString)]
@@ -246,8 +293,9 @@ struct CourseReconciliationTests {
             bindings: [.text(analysis.uuidString), .text(raw.uuidString), .text(announcement.uuidString)]
         )
         try database.execute(
-            "INSERT INTO academic_signals(id,analysis_id,announcement_id,source_account_id,source_object_id,category,evidence,key_requirement,inferred_date,is_all_day,confidence,reason,conflicts_json,provider,model,prompt_version,schema_version,confirmation_state,is_active,created_at,updated_at,course_id,audience_resolution) VALUES(?,?,?,'canvas','ann','course_schedule_change','moved','Attend',1000,0,1,'Explicit','[]','deterministic','local','v1','v1','pending',1,1,1,?,'pending_review')",
-            bindings: [.text(signal.uuidString), .text(analysis.uuidString), .text(announcement.uuidString), .text(canvasCourse.uuidString)]
+            "INSERT INTO academic_signals(id,analysis_id,announcement_id,source_account_id,source_object_id,category,evidence,key_requirement,inferred_date,is_all_day,confidence,reason,conflicts_json,provider,model,prompt_version,schema_version,confirmation_state,is_active,created_at,updated_at,course_id,audience_resolution,schedule_date_role,affected_section,proposed_target_meeting_id) VALUES(?,?,?,'canvas','ann','course_schedule_change','moved','Attend',1000,0,1,'Explicit','[]','deterministic','local','v1','v1','pending',1,1,1,?,'pending_review','affected_meeting',?,?)",
+            bindings: [.text(signal.uuidString), .text(analysis.uuidString), .text(announcement.uuidString),
+                .text(canvasCourse.uuidString), .text(section), .text(proposedMeeting.uuidString)]
         )
     }
 }

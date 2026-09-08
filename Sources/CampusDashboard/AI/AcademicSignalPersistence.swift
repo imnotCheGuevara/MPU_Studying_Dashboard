@@ -96,7 +96,7 @@ final class AcademicSignalPersistence: @unchecked Sendable {
         let next: AcademicSignalConfirmationState
         switch action {
         case "confirm": next = .confirmed
-        case "correct": next = .corrected
+        case "correct": next = correction?.category == .courseScheduleChange ? .pending : .corrected
         case "reject": next = .rejected
         case "undo": next = .undone
         case "reset": next = value.inferredDate == nil ? .notRequired : .pending
@@ -105,8 +105,8 @@ final class AcademicSignalPersistence: @unchecked Sendable {
         let deciding = ["confirm", "correct", "reject"].contains(action)
         guard (!deciding || [.pending, .notRequired, .confirmed, .corrected, .rejected, .undone]
                 .contains(value.confirmationState)),
-              (action != "confirm" || value.category != .courseScheduleChange
-                || value.audienceResolution == .resolved),
+              (action != "confirm"
+                || (value.adoptedCategory ?? value.category) != .courseScheduleChange),
               (action != "undo" || [.confirmed, .corrected, .rejected].contains(value.confirmationState)),
               (action != "reset" || value.decisionOrigin == .userCorrection) else {
             throw AIParsingError.invalidTransition
@@ -116,7 +116,10 @@ final class AcademicSignalPersistence: @unchecked Sendable {
         let adoptedAllDay = correction?.isAllDay ?? value.isAllDay
         let correctedCourseID = correction?.courseID ?? value.courseID
         let correctedTarget = correction == nil ? value.targetMeetingID
-            : try resolvedMeeting(courseID: correctedCourseID, category: adoptedCategory, date: adoptedDate)
+            : try AcademicScheduleTargetResolver.resolveCorrection(
+                database: database, courseID: correctedCourseID, date: adoptedDate,
+                isAllDay: adoptedAllDay
+            )
         let audience: AcademicAudienceResolution = adoptedCategory == .courseScheduleChange
             ? (correctedTarget == nil ? .pendingReview : .resolved) : .noTarget
         let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
@@ -127,7 +130,8 @@ final class AcademicSignalPersistence: @unchecked Sendable {
                 UPDATE academic_signals SET confirmation_state=?,adopted_category=?,adopted_date=?,
                   adopted_is_all_day=?,course_id=COALESCE(?,course_id),adopted_key_requirement=?,
                   adopted_time_zone_identifier=?,decision_origin=?,target_meeting_id=?,
-                  audience_resolution=?,updated_at=? WHERE id=?
+                  audience_resolution=?,schedule_date_role=?,affected_section=?,
+                  proposed_target_meeting_id=?,updated_at=? WHERE id=?
                 """, bindings: [
                     .text(next.rawValue), next == .rejected ? .null : .text(adoptedCategory.rawValue),
                     [.rejected, .undone].contains(next) || action == "reset" ? .null : adoptedDate.map { .real($0.timeIntervalSince1970) } ?? .null,
@@ -137,6 +141,9 @@ final class AcademicSignalPersistence: @unchecked Sendable {
                     action == "reset" ? .null : correction?.timeZoneIdentifier.map(SQLiteValue.text) ?? value.adoptedTimeZoneIdentifier.map(SQLiteValue.text) ?? .null,
                     .text(correction == nil ? value.decisionOrigin.rawValue : AcademicDecisionOrigin.userCorrection.rawValue),
                     correctedTarget.map { .text($0.uuidString) } ?? .null, .text(audience.rawValue),
+                    adoptedCategory == .courseScheduleChange ? .text(AcademicScheduleDateRole.affectedMeeting.rawValue) : .null,
+                    try correctedTarget.flatMap { try sectionForMeeting($0) }.map(SQLiteValue.text) ?? .null,
+                    correctedTarget.map { .text($0.uuidString) } ?? .null,
                     .real(now.timeIntervalSince1970), .text(id.uuidString)
                 ]
             )
@@ -152,12 +159,73 @@ final class AcademicSignalPersistence: @unchecked Sendable {
                     .real(now.timeIntervalSince1970)
                 ]
             )
-            let calendarSafe = adoptedCategory == .courseScheduleChange
-                ? correctedTarget != nil
-                : adoptedDate != nil
-            if calendarSafe || value.targetMeetingID != nil {
+            let calendarSafe = adoptedCategory != .courseScheduleChange && adoptedDate != nil
+            if calendarSafe || (value.category != .courseScheduleChange && value.targetMeetingID != nil) {
                 try enqueueCalendarDecision(signalID: id, eligible: calendarSafe && ![.rejected, .undone].contains(next) && action != "reset", now: now, action: action)
             }
+            if let oldTarget = value.targetMeetingID,
+               (adoptedCategory != .courseScheduleChange || correctedTarget != oldTarget
+                || [.rejected, .undone].contains(next) || action == "reset") {
+                try enqueueCalendarReconcile(
+                    objectType: "course_meeting", objectID: oldTarget.uuidString,
+                    now: now, action: "\(action)_restore"
+                )
+            }
+        }
+    }
+
+    func confirmPreviewed(
+        id: UUID, targetMeetingID: UUID, signalUpdatedAt: Date, now: Date, auditID: UUID
+    ) throws {
+        let isActive = try database.query(
+            "SELECT is_active FROM academic_signals WHERE id=?",
+            bindings: [.text(id.uuidString)]
+        ).first?.int("is_active") == 1
+        guard let value = try signal(id: id), isActive,
+              (value.adoptedCategory ?? value.category) == .courseScheduleChange,
+              value.confirmationState == .pending,
+              value.audienceResolution == .resolved,
+              value.targetMeetingID == targetMeetingID,
+              abs(value.updatedAt.timeIntervalSince(signalUpdatedAt)) < 0.001,
+              let date = value.adoptedDate ?? value.inferredDate,
+              value.scheduleDateRole == .affectedMeeting,
+              value.proposedTargetMeetingID == targetMeetingID,
+              let resolved = try AcademicScheduleTargetResolver.revalidate(
+                database: database, courseID: value.courseID, date: date,
+                isAllDay: value.adoptedIsAllDay ?? value.isAllDay,
+                dateRole: value.scheduleDateRole,
+                affectedSection: value.affectedSection,
+                proposedTarget: value.proposedTargetMeetingID,
+                expectedTarget: targetMeetingID
+              ), resolved == targetMeetingID
+        else { throw AIParsingError.invalidTransition }
+        let next: AcademicSignalConfirmationState = value.decisionOrigin == .userCorrection
+            ? .corrected : .confirmed
+        try database.transaction {
+            try database.execute(
+                """
+                UPDATE academic_signals SET confirmation_state=?,adopted_category=?,adopted_date=?,
+                  adopted_is_all_day=?,adopted_key_requirement=?,adopted_time_zone_identifier=?,
+                  audience_resolution='resolved',updated_at=? WHERE id=?
+                """, bindings: [
+                    .text(next.rawValue), .text(AcademicSignalCategory.courseScheduleChange.rawValue),
+                    .real(date.timeIntervalSince1970),
+                    .integer((value.adoptedIsAllDay ?? value.isAllDay) ? 1 : 0),
+                    .text(value.adoptedKeyRequirement ?? value.keyRequirement),
+                    (value.adoptedTimeZoneIdentifier ?? value.timeZoneIdentifier).map(SQLiteValue.text) ?? .null,
+                    .real(now.timeIntervalSince1970), .text(id.uuidString)
+                ]
+            )
+            try database.execute(
+                "INSERT INTO academic_signal_audit(id,signal_id,action,previous_state,new_state,correction_json,occurred_at) VALUES(?,?,'confirm_preview',?,?,NULL,?)",
+                bindings: [.text(auditID.uuidString), .text(id.uuidString),
+                    .text(value.confirmationState.rawValue), .text(next.rawValue),
+                    .real(now.timeIntervalSince1970)]
+            )
+            try enqueueCalendarReconcile(
+                objectType: "course_meeting", objectID: targetMeetingID.uuidString,
+                now: now, action: "confirm_preview"
+            )
         }
     }
 
@@ -172,8 +240,9 @@ final class AcademicSignalPersistence: @unchecked Sendable {
             "SELECT course_id,title FROM announcements WHERE id=?", bindings: [.text(announcementID.uuidString)]
         ).first
         let courseID = correction.courseID ?? defaultCourse?.string("course_id").flatMap(UUID.init(uuidString:))
-        let targetMeetingID = try resolvedMeeting(
-            courseID: courseID, category: correction.category, date: correction.inferredDate
+        let targetMeetingID = try AcademicScheduleTargetResolver.resolveCorrection(
+            database: database, courseID: courseID, date: correction.inferredDate,
+            isAllDay: correction.isAllDay
         )
         let audience: AcademicAudienceResolution = correction.category == .courseScheduleChange
             ? (targetMeetingID == nil ? .pendingReview : .resolved) : .noTarget
@@ -186,13 +255,17 @@ final class AcademicSignalPersistence: @unchecked Sendable {
             reason: "Explicit local supervised feedback.", conflicts: [],
             provider: analysis.string("provider") ?? "Local correction",
             model: analysis.string("model") ?? "local", promptVersion: analysis.string("prompt_version") ?? "local",
-            schemaVersion: analysis.string("schema_version") ?? "local", confirmationState: .corrected,
+            schemaVersion: analysis.string("schema_version") ?? "local",
+            confirmationState: correction.category == .courseScheduleChange ? .pending : .corrected,
             adoptedCategory: correction.category, adoptedDate: correction.inferredDate,
             adoptedIsAllDay: correction.isAllDay, courseID: courseID,
             adoptedKeyRequirement: correction.keyRequirement,
             adoptedTimeZoneIdentifier: correction.timeZoneIdentifier,
             decisionOrigin: .userCorrection, personalizationRuleVersion: "course-local-v1",
             targetMeetingID: targetMeetingID, audienceResolution: audience,
+            scheduleDateRole: correction.category == .courseScheduleChange ? .affectedMeeting : nil,
+            affectedSection: try targetMeetingID.flatMap { try sectionForMeeting($0) },
+            proposedTargetMeetingID: targetMeetingID,
             createdAt: now, updatedAt: now
         )
         let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
@@ -206,8 +279,9 @@ final class AcademicSignalPersistence: @unchecked Sendable {
                 """
                 INSERT INTO academic_signal_audit
                   (id,signal_id,action,previous_state,new_state,correction_json,occurred_at)
-                VALUES(?,?,'correct_analysis','not_required','corrected',?,?)
+                VALUES(?,?,'correct_analysis','not_required',?,?,?)
                 """, bindings: [.text(auditID.uuidString), .text(signalID.uuidString),
+                    .text(record.confirmationState.rawValue),
                     .blob(try encoder.encode(correction)), .real(now.timeIntervalSince1970)]
             )
             if let courseID, let title = defaultCourse?.string("title") {
@@ -226,8 +300,8 @@ final class AcademicSignalPersistence: @unchecked Sendable {
                     )
                 }
             }
-            let calendarSafe = correction.category == .courseScheduleChange
-                ? targetMeetingID != nil : correction.inferredDate != nil
+            let calendarSafe = correction.category != .courseScheduleChange
+                && correction.inferredDate != nil
             if calendarSafe {
                 try enqueueCalendarDecision(signalID: signalID, eligible: true,
                                             now: now, action: "correct_analysis")
@@ -235,36 +309,12 @@ final class AcademicSignalPersistence: @unchecked Sendable {
         }
     }
 
-    private func resolvedMeeting(
-        courseID: UUID?, category: AcademicSignalCategory, date: Date?
-    ) throws -> UUID? {
-        guard category == .courseScheduleChange, let courseID else { return nil }
-        let directKind = try database.query(
-            "SELECT s.source_kind FROM courses c JOIN source_accounts s ON s.id=c.source_account_id WHERE c.id=?",
-            bindings: [.text(courseID.uuidString)]
-        ).first?.string("source_kind")
-        let localCourseIDs: [String]
-        if directKind == "SIweb" {
-            localCourseIDs = [courseID.uuidString]
-        } else {
-            localCourseIDs = try database.query(
-                "SELECT siweb_course_id FROM academic_course_mappings WHERE canvas_course_id=? AND is_active=1 AND decision_state='confirmed'",
-                bindings: [.text(courseID.uuidString)]
-            ).compactMap { $0.string("siweb_course_id") }
-        }
-        guard localCourseIDs.count == 1 else { return nil }
-        let rows = try database.query(
-            "SELECT id,starts_at FROM course_meetings WHERE course_id=? AND source_state='active'",
-            bindings: [.text(localCourseIDs[0])]
-        )
-        let matches = date.map { date in
-            rows.filter { row in
-                guard let start = row.double("starts_at") else { return false }
-                return abs(start - date.timeIntervalSince1970) <= 43_200
-            }
-        } ?? rows
-        guard matches.count == 1 else { return nil }
-        return matches[0].string("id").flatMap(UUID.init(uuidString:))
+    private func sectionForMeeting(_ id: UUID) throws -> String? {
+        let code = try database.query(
+            "SELECT c.code FROM course_meetings m JOIN courses c ON c.id=m.course_id WHERE m.id=? AND m.source_state='active'",
+            bindings: [.text(id.uuidString)]
+        ).first?.string("code")
+        return CourseIdentityNormalizer.sectionIdentifier(code)
     }
 
     private func insertSignal(_ value: AcademicSignalRecord) throws {
@@ -277,8 +327,8 @@ final class AcademicSignalPersistence: @unchecked Sendable {
                confirmation_state,adopted_category,adopted_date,adopted_is_all_day,is_active,
                course_id,adopted_key_requirement,adopted_time_zone_identifier,decision_origin,
                personalization_rule_version,target_meeting_id,audience_resolution,
-               created_at,updated_at)
-            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?,?,?,?,?)
+               schedule_date_role,affected_section,proposed_target_meeting_id,created_at,updated_at)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?,?,?,?,?,?,?,?)
             """, bindings: [
                 .text(value.id.uuidString), .text(value.analysisID.uuidString),
                 .text(value.announcementID.uuidString), .text(value.sourceAccountID),
@@ -298,6 +348,9 @@ final class AcademicSignalPersistence: @unchecked Sendable {
                 value.personalizationRuleVersion.map(SQLiteValue.text) ?? .null,
                 value.targetMeetingID.map { .text($0.uuidString) } ?? .null,
                 .text(value.audienceResolution.rawValue),
+                value.scheduleDateRole.map { .text($0.rawValue) } ?? .null,
+                value.affectedSection.map(SQLiteValue.text) ?? .null,
+                value.proposedTargetMeetingID.map { .text($0.uuidString) } ?? .null,
                 .real(value.createdAt.timeIntervalSince1970), .real(value.updatedAt.timeIntervalSince1970)
             ]
         )
@@ -356,6 +409,9 @@ final class AcademicSignalPersistence: @unchecked Sendable {
             personalizationRuleVersion: row.string("personalization_rule_version"),
             targetMeetingID: row.string("target_meeting_id").flatMap(UUID.init(uuidString:)),
             audienceResolution: row.string("audience_resolution").flatMap(AcademicAudienceResolution.init(rawValue:)) ?? .noTarget,
+            scheduleDateRole: row.string("schedule_date_role").flatMap(AcademicScheduleDateRole.init(rawValue:)),
+            affectedSection: row.string("affected_section"),
+            proposedTargetMeetingID: row.string("proposed_target_meeting_id").flatMap(UUID.init(uuidString:)),
             createdAt: Date(timeIntervalSince1970: created),
             updatedAt: Date(timeIntervalSince1970: row.double("updated_at") ?? created)
         )
@@ -367,9 +423,14 @@ final class AcademicSignalPersistence: @unchecked Sendable {
         ).first?.string("target_meeting_id")
         let objectType = targetMeetingID == nil ? "academic_signal" : "course_meeting"
         let objectID = targetMeetingID ?? signalID.uuidString
-        let envelope: OutboxEnvelope = eligible
-            ? .calendarReconcile(objectType: objectType, objectID: objectID)
-            : .calendarReconcile(objectType: objectType, objectID: objectID)
+        _ = eligible
+        try enqueueCalendarReconcile(objectType: objectType, objectID: objectID, now: now, action: action)
+    }
+
+    private func enqueueCalendarReconcile(
+        objectType: String, objectID: String, now: Date, action: String
+    ) throws {
+        let envelope: OutboxEnvelope = .calendarReconcile(objectType: objectType, objectID: objectID)
         let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .millisecondsSince1970
         let kind = "calendar.reconcile"
         let dedupe = "\(kind):\(objectType):\(objectID):\(action):\(String(format: "%.6f", now.timeIntervalSince1970))"

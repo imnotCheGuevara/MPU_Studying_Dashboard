@@ -94,6 +94,21 @@ enum DatabaseMigrator {
                 try database.execute("PRAGMA user_version = 13")
             }
         }
+        if version < 14 {
+            try database.transaction {
+                for statement in version14ColumnStatements { try database.execute(statement) }
+                let tables = Set(try database.query(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).compactMap { $0.string("name") })
+                if tables.contains("outbox_work"), tables.contains("calendar_bindings") {
+                    for statement in version14CalendarRecoveryStatements {
+                        try database.execute(statement)
+                    }
+                }
+                for statement in version14SafetyStatements { try database.execute(statement) }
+                try database.execute("PRAGMA user_version = 14")
+            }
+        }
 
         let finalVersion = try database.scalarInt("PRAGMA user_version")
         guard finalVersion == SQLiteDatabase.currentSchemaVersion else {
@@ -141,6 +156,85 @@ enum DatabaseMigrator {
         )
         """,
         "CREATE INDEX idx_academic_course_mapping_audit_mapping ON academic_course_mapping_audit(mapping_id,occurred_at)"
+    ]
+
+    private static let version14ColumnStatements = [
+        "ALTER TABLE academic_signals ADD COLUMN schedule_date_role TEXT",
+        "ALTER TABLE academic_signals ADD COLUMN affected_section TEXT",
+        "ALTER TABLE academic_signals ADD COLUMN proposed_target_meeting_id TEXT"
+    ]
+
+    private static let version14CalendarRecoveryStatements = [
+        """
+        INSERT INTO outbox_work
+          (id,kind,deduplication_key,object_type,object_id,payload,state,attempt_count,
+           available_at,created_at,updated_at,last_error_category)
+        SELECT lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-' ||
+               lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' ||
+               lower(hex(randomblob(6))),
+               'calendar.reconcile','calendar.reconcile:course_meeting:' || s.target_meeting_id ||
+               ':migration-v14','course_meeting',s.target_meeting_id,
+               CAST(json_object('operation','calendarReconcile','objectType','course_meeting',
+                                'objectID',s.target_meeting_id) AS BLOB),
+               'pending',0,CAST(strftime('%s','now') AS REAL),
+               CAST(strftime('%s','now') AS REAL),CAST(strftime('%s','now') AS REAL),NULL
+        FROM academic_signals s
+        WHERE s.is_active=1
+          AND COALESCE(s.adopted_category,s.category)='course_schedule_change'
+          AND s.confirmation_state IN ('confirmed','corrected')
+          AND s.target_meeting_id IS NOT NULL
+          AND EXISTS(
+            SELECT 1 FROM calendar_bindings b
+            WHERE b.object_type='course_meeting' AND b.object_id=s.target_meeting_id
+              AND b.sync_state!='removed'
+          )
+        ON CONFLICT(deduplication_key) DO NOTHING
+        """,
+        """
+        INSERT INTO outbox_work
+          (id,kind,deduplication_key,object_type,object_id,payload,state,attempt_count,
+           available_at,created_at,updated_at,last_error_category)
+        SELECT lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-' ||
+               lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' ||
+               lower(hex(randomblob(6))),
+               'calendar.reconcile','calendar.reconcile:academic_signal:' || s.id ||
+               ':migration-v14','academic_signal',s.id,
+               CAST(json_object('operation','calendarReconcile','objectType','academic_signal',
+                                'objectID',s.id) AS BLOB),
+               'pending',0,CAST(strftime('%s','now') AS REAL),
+               CAST(strftime('%s','now') AS REAL),CAST(strftime('%s','now') AS REAL),NULL
+        FROM academic_signals s
+        WHERE s.is_active=1
+          AND COALESCE(s.adopted_category,s.category)='course_schedule_change'
+          AND EXISTS(
+            SELECT 1 FROM calendar_bindings b
+            WHERE b.object_type='academic_signal' AND b.object_id=s.id
+              AND b.sync_state!='removed'
+          )
+        ON CONFLICT(deduplication_key) DO NOTHING
+        """
+    ]
+
+    private static let version14SafetyStatements = [
+        """
+        INSERT INTO academic_signal_audit
+          (id,signal_id,action,previous_state,new_state,correction_json,occurred_at)
+        SELECT lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-' ||
+               lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' ||
+               lower(hex(randomblob(6))),
+               id,'target_invalidated',confirmation_state,'pending',NULL,
+               CAST(strftime('%s','now') AS REAL)
+        FROM academic_signals
+        WHERE is_active=1 AND COALESCE(adopted_category,category)='course_schedule_change'
+          AND confirmation_state IN ('confirmed','corrected')
+        """,
+        """
+        UPDATE academic_signals
+        SET confirmation_state='pending',target_meeting_id=NULL,audience_resolution='pending_review',
+            updated_at=CAST(strftime('%s','now') AS REAL)
+        WHERE is_active=1 AND COALESCE(adopted_category,category)='course_schedule_change'
+          AND confirmation_state IN ('confirmed','corrected')
+        """
     ]
 
     private static let version1Statements = [

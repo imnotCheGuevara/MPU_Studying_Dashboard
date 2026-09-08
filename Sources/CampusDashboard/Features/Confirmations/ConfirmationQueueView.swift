@@ -127,12 +127,16 @@ struct ConfirmationQueueView: View {
     }
 
     private func academicSignalCard(_ item: AcademicSignalRecord) -> some View {
-        Card {
+        let effectiveCategory = item.adoptedCategory ?? item.category
+        let unsafeSchedule = effectiveCategory == .courseScheduleChange
+            && (item.targetMeetingID == nil || item.audienceResolution != .resolved)
+        return Card {
             VStack(alignment: .leading, spacing: 9) {
                 HStack {
                     Badge(text: model.text(item.confirmationState.rawValue), color: item.confirmationState == .pending ? .purple : .secondary)
-                    Badge(text: model.text(categoryLabel(item.category)), color: .secondary)
+                    Badge(text: model.text(categoryLabel(effectiveCategory)), color: .secondary)
                     if !item.conflicts.isEmpty { Badge(text: model.text("Conflict / uncertain"), color: .orange) }
+                    if unsafeSchedule { Badge(text: model.text("Section needs review"), color: .orange) }
                     if model.calendarWrittenSignalIDs.contains(item.id) {
                         Badge(text: model.text("Calendar written"), color: .green)
                     }
@@ -149,23 +153,30 @@ struct ConfirmationQueueView: View {
                 if let date = item.inferredDate {
                     labeled("Inferred date (not yet authorized)", model.format(date))
                 }
+                if let section = item.affectedSection { labeled("Affected section", section) }
+                if let role = item.scheduleDateRole { labeled("Schedule date role", role.rawValue) }
                 labeled("Reason", item.reason)
                 Text("\(item.provider) · \(item.model) · \(model.text("prompt")) \(item.promptVersion) · \(model.text("schema")) \(item.schemaVersion)")
                     .font(.caption2).foregroundStyle(.tertiary)
                 HStack {
                     if item.confirmationState == .pending {
-                        Button(model.text(item.inferredDate == nil ? "Confirm locally" : "Preview Calendar change…")) {
-                            if item.inferredDate == nil { model.confirmAcademicSignal(item.id) }
+                        Button(model.text(effectiveCategory == .courseScheduleChange
+                            ? "Preview Calendar change…"
+                            : (item.inferredDate == nil ? "Confirm locally" : "Preview Calendar change…"))) {
+                            if effectiveCategory != .courseScheduleChange && item.inferredDate == nil {
+                                model.confirmAcademicSignal(item.id)
+                            }
                             else { Task { await model.previewAcademicSignal(item.id) } }
                         }
                         .buttonStyle(.borderedProminent)
-                        .disabled(item.audienceResolution == .pendingReview)
+                        .disabled(effectiveCategory == .courseScheduleChange
+                            && item.audienceResolution != .resolved)
                         Button(model.text("Correct…")) {
                             let courseID = item.courseID ?? model.snapshot.announcements.first(where: { $0.id == item.announcementID })?.courseID
                             if let courseID { academicCorrectionTarget = .init(analysis: nil, signal: item, courseID: courseID) }
                         }
                         Button(model.text("Ignore"), role: .destructive) { model.rejectAcademicSignal(item.id) }
-                    } else if item.confirmationState == .notRequired {
+                    } else if item.confirmationState == .notRequired || unsafeSchedule {
                         Button(model.text("Correct…")) {
                             let courseID = item.courseID ?? model.snapshot.announcements.first(where: { $0.id == item.announcementID })?.courseID
                             if let courseID { academicCorrectionTarget = .init(analysis: nil, signal: item, courseID: courseID) }

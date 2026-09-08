@@ -101,10 +101,12 @@ actor OutboxProcessor {
         }
         if objectType == "academic_signal" {
             let row = try database.query(
-                "SELECT confirmation_state,adopted_date,inferred_date,is_active FROM academic_signals WHERE id=?",
+                "SELECT confirmation_state,adopted_date,inferred_date,is_active,category,adopted_category FROM academic_signals WHERE id=?",
                 bindings: [.text(objectID)]
             ).first
             let eligible = row?.int("is_active") == 1
+                && (row?.string("adopted_category") ?? row?.string("category"))
+                    != AcademicSignalCategory.courseScheduleChange.rawValue
                 && ["confirmed", "corrected"].contains(row?.string("confirmation_state") ?? "")
                 && (row?.double("adopted_date") != nil || row?.double("inferred_date") != nil)
             if eligible { return .upsert(objectType: objectType, objectID: objectID) }
