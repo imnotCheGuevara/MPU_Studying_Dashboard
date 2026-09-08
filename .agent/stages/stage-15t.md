@@ -1,6 +1,6 @@
 # Stage 15T — Information-noise reduction and Needs Review center
 
-Status: `IN PROGRESS`
+Status: `ACCEPTED`
 
 ## Goal
 

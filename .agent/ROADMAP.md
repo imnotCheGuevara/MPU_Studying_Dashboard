@@ -32,7 +32,7 @@ The main project conversation owns this roadmap and accepts each stage. Stage co
 - Stages 06 and 07 may run in parallel after Stage 05 is accepted, but only in isolated Git worktrees. In the same checkout, run them sequentially.
 - All other dependency edges are sequential.
 - The DeepSeek track ended with accepted Stage 12. The Outlook track (Stages 13–14) is explicitly deferred pending school IT guidance and is not on the current critical path.
-- Stage 15S implementation and follow-up correction workflows are merged and its synthetic gates pass, but its real Calendar lifecycle remains `PARTIAL`. Stage 15T is authorized as a bounded pre-release usability repair and does not earn Stage 15S real-lifecycle credit. After 15T acceptance, the main conversation must revalidate the combined signed candidate, then complete the separately approved Stage 15S exact Calendar confirm/undo lifecycle before Stage 15R can pass or Stage 10 can resume at 0/7.
+- Stage 15T is accepted at `2578312`; the combined candidate passes its 250-test suite, release/signing checks, safety scans, and bilingual synthetic signed-app walkthrough. Stage 15S remains `PARTIAL`: the next gate is a real signed-app exact cancellation preview followed by separately approved confirm/undo operations in the dedicated Calendar. Only after that gate and the combined real Canvas/SIweb/UI checks may Stage 15R and Stage 15 be accepted, the candidate be frozen, and Stage 10 resume at 0/7.
 - Historical Stage 10R gate remains satisfied. Outlook work performed offline during partial Stage 13 earns no acceptance credit and must remain dormant during the trial.
 - Parallel stages must not edit the same central planning files. Each writes only its own handoff.
 
