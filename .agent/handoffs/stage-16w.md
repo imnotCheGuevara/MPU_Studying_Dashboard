@@ -4,6 +4,10 @@ Status: `PARTIAL`
 
 Updated: 2026-09-11 Asia/Macau
 
+## Main-conversation pause — 2026-09-12
+
+The user requires a Windows adaptation explanation for review before any Windows implementation continues. Stage 16W is therefore paused. Draft commits `101e014` and `40f30f0` are preserved unchanged as unreviewed work; they are not accepted Windows evidence. The review-gate commit changes documentation only. Resume only after explicit approval of `docs/windows-adaptation-review.md`.
+
 ## Current slice
 
 The reuse-first Windows track is authorized on `codex/windows-port`. The first slice adds a host-conditional SwiftPM target named `CampusDashboardWindows`, compiling the existing `Domain/Models.swift` and `Fixtures/SyntheticFixtures.swift` directly with a small SwiftCrossUI/WinUI entry point. The accepted macOS package remains the active manifest branch on macOS.

@@ -1,6 +1,16 @@
 # Stage 15S handoff — section-aware schedule-change targeting safety repair
 
-Status: `PARTIAL`
+Status: `PASS`
+
+## Main-conversation final acceptance — 2026-09-12
+
+- Read-only preview resolved signal prefix `B27870DA` to exactly one current SIweb meeting prefix `29D28DF2`, scheduled 2026-09-07 14:30–17:30, and showed a cancellation in the dedicated `Campus Dashboard` calendar. Preview caused no write.
+- The user gave fresh approval for the exact cancellation. Only the bound app-owned event changed; no personal, family, shared, subscribed, or unrelated event was targeted.
+- The user then gave a separate approval for undo. Final aggregate state is `undone / resolved`; proposed and target meeting prefixes remain the same, the target has one binding to one synced event, and the Calendar outbox is `97 completed / 0 pending`.
+- The transition audit records reset to pending, confirmed correction, and undo as separate actions. Only prefixes and aggregate counts are retained here; no private source text, full identifier, or credential is recorded.
+- After the user refreshed the authorized SIweb session, the signed executable completed a current aggregate-only read with `92 meetings / 0 cancelled`. Canvas independently passed with `6 courses / 7 tasks / 10 announcements`.
+
+The main conversation accepts Stage 15S. Future Calendar changes still require their own exact preview and fresh action-time approval.
 
 ## Main-conversation correction-visibility repair — 2026-09-08
 

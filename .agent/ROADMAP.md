@@ -23,7 +23,7 @@ The main project conversation owns this roadmap and accepts each stage. Stage co
 | 15R | Release usability closure | 15 partial | All setup is available in-app; failures are recoverable; AI review and Calendar actions are explicit; the release is reproducible and instrumented for honest seven-day metrics |
 | 15S | Schedule-change targeting safety repair | 15R partial; real acceptance defect | Multi-section cancellation dates are section-aware, uniquely bound to SIweb meetings, never shown or written as standalone confirmed changes when unresolved, and always require explicit confirmation |
 | 15T | Information-noise reduction and Needs Review center | 15S implementation baseline | Announcements remains the source feed; Needs Review contains only actionable unresolved decisions; empty Canvas assignment shells are locally collapsed and reactivate idempotently when actionable |
-| 16W | Reuse-first Windows application port | 15T accepted implementation baseline | A distributable native Windows app reuses the canonical Swift domain and read-only source logic, omits iCloud/external calendars, and passes CI plus real Windows acceptance |
+| 16W | Reuse-first Windows application port | 15 accepted candidate; user-approved Windows adaptation plan | A distributable native Windows app reuses the canonical Swift domain and read-only source logic, omits iCloud/external calendars, and passes CI plus real Windows acceptance |
 
 ## Parallelism policy
 
@@ -31,9 +31,9 @@ The main project conversation owns this roadmap and accepts each stage. Stage co
 - Stages 06 and 07 may run in parallel after Stage 05 is accepted, but only in isolated Git worktrees. In the same checkout, run them sequentially.
 - All other dependency edges are sequential.
 - The DeepSeek track ended with accepted Stage 12. The former mailbox track and its implementation have been removed from the product.
-- Stage 15T is accepted at `2578312`; the combined candidate passes its 250-test suite, release/signing checks, safety scans, and bilingual synthetic signed-app walkthrough. Stage 15S remains `PARTIAL`: the next gate is a real signed-app exact cancellation preview followed by separately approved confirm/undo operations in the dedicated Calendar. Only after that gate and the combined real Canvas/SIweb/UI checks may Stage 15R and Stage 15 be accepted, the candidate be frozen, and Stage 10 resume at 0/7.
+- Stage 15T is accepted at `2578312`. Stage 15S, Stage 15R, and Stage 15 were accepted on 2026-09-12 after the exact real cancellation/undo lifecycle, live Canvas/SIweb checks, signed UI evidence, provider boundary checks, cadence evidence, and the Outlook-removal regression/build/signature gates passed. The accepted macOS candidate is `0.3.0 (4)` with executable SHA-256 `d5ee7a4f549bf96cc5c14044351df8e19d3cc035259158ac9e2cea59d174d682`. Stage 10 remains paused at 0/7 until the user separately starts the seven-day trial.
 - Historical Stage 10R gate remains satisfied. Historical partial Stage 13 evidence is retained only as an immutable handoff and is outside the product.
-- Stage 16W is an independent distribution track based on the accepted Stage 15T implementation. It may proceed while the macOS-only Stage 15S real EventKit gate remains partial because the Windows target contains no external-calendar integration. Shared-code changes must still preserve the macOS suite.
+- Stage 16W is paused behind a new user-review gate. Draft commits `101e014` and `40f30f0` are preserved but unaccepted; no further implementation may proceed until the user approves `docs/windows-adaptation-review.md`. After approval, shared-code changes must preserve the accepted macOS suite, and Windows CI plus real-machine acceptance remain mandatory.
 - Parallel stages must not edit the same central planning files. Each writes only its own handoff.
 
 ## Execution-efficiency policy

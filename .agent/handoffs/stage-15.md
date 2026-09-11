@@ -1,12 +1,18 @@
 # Stage 15 handoff — academic signal classification and schedule mapping
 
-Status: `PARTIAL`
+Status: `PASS`
+
+## Main-conversation final acceptance — 2026-09-12
+
+Stage 15 is accepted after Stage 15S and Stage 15R closed their real-use gates. The accepted macOS artifact is `0.3.0 (4)` with executable SHA-256 `d5ee7a4f549bf96cc5c14044351df8e19d3cc035259158ac9e2cea59d174d682`. It passes the post-Outlook-removal 239-test/20-suite gate, production build and app verification, strict code-signature verification, current live read-only Canvas/SIweb smokes, provider-boundary checks, signed UI evidence, automatic-cadence evidence, and the exact reversible dedicated-calendar lifecycle.
+
+Stage 10 remains paused at 0/7 and is not part of this acceptance.
 
 ## Outcome
 
-Stage 15 implementation is complete and the frozen release candidate passes the full automated, build, launch, Keychain, and strict code-signing checks. A 2026-09-07 authorized validation pass added a successful aggregate-only live Canvas smoke and confirmed independent-source failure handling, but the stage remains `PARTIAL`: the existing SIweb session now redirects to login, DeepSeek consent is not current, and the signed-app interactive bilingual walkthrough remains blocked because macOS ScreenCaptureKit returns capture error `-3811` and the accessibility bridge cannot complete.
+Stage 15 implementation and its acceptance repairs are complete. The final main-conversation acceptance on 2026-09-12 supersedes the historical blockers recorded below: the rebuilt signed candidate passed live Canvas and SIweb reads, exact dedicated-calendar cancellation and separately approved undo, provider-boundary checks, signed UI evidence, automatic-cadence evidence, and the Outlook-removal regression/build/signature gates.
 
-Stage 10 remains paused at 0/7. No Stage 10 validation was started. Outlook remains dormant: no mail, Microsoft Graph, login, or authentication activity occurred, and no Outlook code was changed or inspected.
+Stage 10 remains paused at 0/7 and was not started. Outlook has been removed from the active product; immutable historical notes below remain evidence only.
 
 ## Implemented
 

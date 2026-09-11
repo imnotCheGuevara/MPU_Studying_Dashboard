@@ -1,10 +1,14 @@
 # Stage 16W — Windows application port
 
-Status: `IN PROGRESS`
+Status: `PAUSED — AWAITING USER REVIEW`
 
 ## Goal
 
 Deliver a Windows build of Campus Dashboard that reuses the accepted Swift domain, source, normalization, persistence, and safety rules wherever they compile cleanly. Replace Apple-only UI and operating-system services with Windows-native boundaries. The Windows product deliberately omits iCloud and all external-calendar writes; Today and Schedule remain in-app views.
+
+## User-review gate
+
+The main conversation must present `docs/windows-adaptation-review.md` and receive explicit user approval before implementation resumes. Earlier draft commits `101e014` and `40f30f0` are preserved as unreviewed work only; they do not authorize more code, CI, packaging, or distribution work and cannot accumulate acceptance credit while this stage is paused.
 
 ## Required startup context
 

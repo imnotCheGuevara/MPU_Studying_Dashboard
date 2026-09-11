@@ -1,12 +1,23 @@
 # Stage 15R handoff — release readiness and validation closure
 
-Status: `PARTIAL`
+Status: `PASS`
+
+## Main-conversation final acceptance — 2026-09-12
+
+- The accepted signed app is version `0.3.0 (4)`, executable SHA-256 `d5ee7a4f549bf96cc5c14044351df8e19d3cc035259158ac9e2cea59d174d682`, bundle identifier `com.campusdashboard.desktop`, CDHash `71028af713336555023cab26bed328003ac78157`, with an ad-hoc signature that passes strict verification.
+- Current aggregate-only source smokes pass: Canvas `6 courses / 7 tasks / 10 announcements`; SIweb `92 meetings / 0 cancelled`. Both remain read-only.
+- The exact dedicated-calendar cancellation and separately approved undo pass; the final outbox is `97 completed / 0 pending`, and the app reports `Dedicated calendar verified in iCloud`.
+- Recent persisted production runs show the expected roughly hourly automatic cadence rather than the obsolete rapid loop. Existing accepted bilingual/accessibility synthetic signed-app checks and the live settings/recovery walkthrough cover the repaired UI paths.
+- The optional DeepSeek synthetic smoke passes through the existing validated cache with direct HTTPS enabled, strict schema validation, bounded disclosure, and no private-content or credential exposure. A no-pending-item Stage 12 smoke safely made no Calendar or notification change.
+- Stage 10 remains paused at 0/7; this acceptance does not claim seven-day operational evidence.
+
+The main conversation accepts Stage 15R.
 
 ## Outcome
 
-The release-candidate implementation, including the 2026-09-07 Canvas/SIweb reconciliation, acceptance-blocker, automatic-cadence, source-localization, and SIweb post-authorization health repairs, is complete and the automated, privacy, packaging, and signature gates pass. The current strict SIweb contract also passes an aggregate-only real read from the frozen candidate. The remaining acceptance gap is the main conversation's post-repair Settings/UI verification, real bilingual UI, automatic-cadence observation, and existing-dedicated-calendar walkthrough. This handoff therefore remains `PARTIAL` and does not start the seven-day trial.
+The release-candidate implementation and acceptance repairs are complete. The final main-conversation acceptance on 2026-09-12 supersedes the historical gaps recorded below: post-repair Settings/UI evidence, bilingual/accessibility coverage, automatic hourly cadence evidence, current live Canvas/SIweb reads, and the existing-dedicated-calendar cancellation/undo walkthrough all passed. This acceptance does not start the separate seven-day trial.
 
-No Outlook setup, authorization callback, token lookup, metadata probe, or background traffic is reachable from the production app in this release. The older Stage 13 implementation and its regression tests remain in the repository as dormant historical code.
+Outlook has been removed from active product code, settings, tests, and planning. Historical handoff references are retained as immutable evidence only.
 
 ## Implemented
 
