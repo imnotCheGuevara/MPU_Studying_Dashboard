@@ -4,7 +4,7 @@ Updated: 2026-09-12 Asia/Macau.
 
 ## Active state
 
-- **Stage 16W: PAUSED — AWAITING USER REVIEW.** Two earlier draft commits (`101e014`, `40f30f0`) are preserved on `codex/windows-port` as unreviewed work. Do not continue implementation, CI, packaging, or distribution until the user approves `docs/windows-adaptation-review.md`.
+- **Stage 16W: PAUSED — AWAITING USER REVIEW.** Two earlier draft commits (`101e014`, `40f30f0`) are preserved on `codex/windows-port` as unreviewed work. Do not change implementation, CI configuration, packaging, or distribution until the user approves `docs/windows-adaptation-review.md`. An existing workflow may run automatically after documentation pushes; that does not count as acceptance or authorize fixes.
 - **Stage 15T: ACCEPTED** at `2578312`. The information-noise repair is merged and independently verified.
 - **Stage 15S: ACCEPTED.** A real cancellation was previewed read-only against one exact current SIweb meeting, confirmed only after explicit action-time approval, and restored only after a separate undo approval. Audit, binding, and outbox evidence remained exact and scoped.
 - **Stage 15R / 15: ACCEPTED.** The signed macOS `0.3.0 (4)` candidate passed live Canvas and SIweb reads, provider-boundary checks, UI evidence, automatic-cadence evidence, the dedicated-calendar lifecycle, and the post-Outlook-removal automated/build/signature gates.

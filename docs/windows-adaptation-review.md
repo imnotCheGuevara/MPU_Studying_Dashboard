@@ -2,7 +2,7 @@
 
 Status: **AWAITING USER REVIEW — DO NOT CONTINUE IMPLEMENTATION**
 
-This document proposes how to adapt the accepted macOS product to Windows. It is a design and delivery plan only. No additional Windows coding, CI, packaging, or publishing is authorized until the user approves this document.
+This document proposes how to adapt the accepted macOS product to Windows. It is a design and delivery plan only. No additional Windows code, CI configuration or fixes, packaging, or publishing is authorized until the user approves this document.
 
 ## Current repository situation
 
@@ -10,6 +10,7 @@ This document proposes how to adapt the accepted macOS product to Windows. It is
 - Branch `codex/windows-port` already contains two draft implementation commits: `101e014` and `40f30f0`.
 - Those commits are already present on the branch's GitHub remote, but they have not been accepted as the Windows design or release.
 - Both slices are preserved unchanged as **unreviewed drafts**. The review-gate commit changes documentation only; no further implementation proceeds before approval.
+- GitHub may automatically run the existing Windows workflow after the documentation push. Any such result is informational only and will not be acted on or counted as acceptance before review approval.
 
 ## Recommended first release
 

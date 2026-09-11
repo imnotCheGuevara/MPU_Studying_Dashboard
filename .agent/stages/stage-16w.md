@@ -8,7 +8,7 @@ Deliver a Windows build of Campus Dashboard that reuses the accepted Swift domai
 
 ## User-review gate
 
-The main conversation must present `docs/windows-adaptation-review.md` and receive explicit user approval before implementation resumes. Earlier draft commits `101e014` and `40f30f0` are preserved as unreviewed work only; they do not authorize more code, CI, packaging, or distribution work and cannot accumulate acceptance credit while this stage is paused.
+The main conversation must present `docs/windows-adaptation-review.md` and receive explicit user approval before implementation resumes. Earlier draft commits `101e014` and `40f30f0` are preserved as unreviewed work only; they do not authorize more code, CI configuration or fixes, packaging, or distribution work and cannot accumulate acceptance credit while this stage is paused. An existing workflow may run automatically after a documentation push, but its result remains informational until review approval.
 
 ## Required startup context
 
