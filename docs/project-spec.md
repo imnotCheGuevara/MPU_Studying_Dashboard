@@ -2,11 +2,11 @@
 
 版本：1.2
 状态：DeepSeek 公告分类已完成；邮箱扩展已移除；最终集成已授权，试运行待发布候选
-平台：macOS，本地单用户应用
+平台：macOS 与 Windows，本地单用户应用；Windows 版不含 iCloud 或任何外部日历集成
 
 ## 1. 项目概述
 
-Campus Dashboard 是一个仅供个人使用的 Mac 本地桌面应用。它汇总学校 SIweb 和 Canvas 中与学习有关的信息，转换为统一数据模型，在本地提供今日总览、日程、任务、公告、提醒与同步状态，并把课程和经确认的关键截止事项写入应用专用的 Apple 日历，通过用户已有的 iCloud 日历能力显示在 iPhone 上。
+Campus Dashboard 是一个仅供个人使用的本地桌面应用。它汇总学校 SIweb 和 Canvas 中与学习有关的信息，转换为统一数据模型，并在 macOS 与 Windows 上提供今日总览、日程、任务、公告、提醒与同步状态。macOS 版可把经确认的项目写入专用 Apple 日历；Windows 版只保留应用内 Today/Schedule，不连接 iCloud、Outlook 或其他外部日历。
 
 第一阶段目标是建立可靠、合规、可解释的信息连接和同步链路。AI 仅用于整理已经合法同步到本地的 Canvas 内容，不承担登录、网页访问、来源写入或日历操作。第二阶段才扩展为 AI 学习规划。
 

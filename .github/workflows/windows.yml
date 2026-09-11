@@ -1,0 +1,53 @@
+name: Windows
+
+on:
+  push:
+    branches:
+      - codex/windows-port
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Visual Studio environment
+        uses: seanmiddleditch/gha-setup-vsdevenv@v5
+
+      - name: Install Swift
+        uses: compnerd/gha-setup-swift@v0.3.0
+        with:
+          branch: swift-6.1-release
+          tag: 6.1-RELEASE
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Resolve dependencies
+        run: swift package resolve
+
+      - name: Build Windows release
+        run: swift build -c release --product CampusDashboardWindows
+
+      - name: Run Windows tests
+        run: swift test -c release
+
+      - name: Stage CI executable
+        run: |
+          $binPath = swift build -c release --show-bin-path
+          New-Item -ItemType Directory -Force artifacts/CampusDashboardWindows | Out-Null
+          Copy-Item "$binPath/CampusDashboardWindows.exe" artifacts/CampusDashboardWindows/
+
+      - name: Upload CI executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: CampusDashboardWindows-ci
+          path: artifacts/CampusDashboardWindows
+          if-no-files-found: error

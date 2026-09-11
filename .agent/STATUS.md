@@ -2,7 +2,7 @@
 
 Only the main project conversation updates this file after inspecting and accepting a stage handoff.
 
-Current authorized stage: **Stage 15S real lifecycle acceptance gate**
+Current authorized stage: **Stage 16W Windows application port**. The Stage 15S real lifecycle acceptance gate remains independently `PARTIAL` and no EventKit mutation is authorized by this work.
 
 | Stage | Status | Accepted handoff | Notes |
 | --- | --- | --- | --- |
@@ -23,6 +23,7 @@ Current authorized stage: **Stage 15S real lifecycle acceptance gate**
 | 15R | PARTIAL | `.agent/handoffs/stage-15r.md` (`PARTIAL`) | Reconciliation repair committed (`5df93d7`, handoff `bcadf8f`); 226 tests/20 suites, build, signature, safety scans, conflict decisions, canonical presentation, schedule-change semantics, and synthetic-source exclusion pass. Awaiting the user-only Keychain/system prompt, dedicated Calendar permission, and main-thread real signed-app walkthrough before acceptance |
 | 15S | PARTIAL | `.agent/handoffs/stage-15s.md` (`PARTIAL`) | Repair merged; tests and signed-app schema-14 safety migration pass. Source `25573` is now pending/no-target and absent from Schedule, with correction UI available. Its legacy wrong date remains; awaiting consented reprocess or user correction, exact preview, and separately approved EventKit confirm/undo. |
 | 15T | ACCEPTED | `.agent/handoffs/stage-15t.md` | Accepted at `2578312`: Announcements/Needs Review separation, correctable unavailable/other results, conservative persisted placeholder suppression/reactivation, mutually exclusive task presentation, and exactly-once reactivation notification pass. Stage task and main conversation both passed the 250-test suite; release build, signing, scans, and bilingual synthetic signed-app walkthrough pass. |
+| 16W | IN PROGRESS | `.agent/handoffs/stage-16w.md` (pending) | Reuse-first Windows distribution authorized on `codex/windows-port`; internal Today/Schedule remain, while iCloud, EventKit, Outlook/Graph, and all external-calendar integration are excluded. Windows CI artifact and real-machine smoke are required. |
 
 Status meanings:
 
