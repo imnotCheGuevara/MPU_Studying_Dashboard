@@ -9,7 +9,9 @@ on:
 
 jobs:
   build-and-test:
-    runs-on: windows-latest
+    # Swift 6.1 ships Clang 19. Pin the runner while windows-latest carries
+    # Visual Studio 18's STL, which requires Clang 20 for C++ dependencies.
+    runs-on: windows-2022
     defaults:
       run:
         shell: pwsh
@@ -31,9 +33,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .build
-          key: windows-swift-6.1-v1-${{ hashFiles('Package.swift', 'Bundler.toml') }}
+          key: windows-2022-swift-6.1-v1-${{ hashFiles('Package.swift', 'Bundler.toml') }}
           restore-keys: |
-            windows-swift-6.1-v1-
+            windows-2022-swift-6.1-v1-
 
       - name: Show Swift version
         run: swift --version
