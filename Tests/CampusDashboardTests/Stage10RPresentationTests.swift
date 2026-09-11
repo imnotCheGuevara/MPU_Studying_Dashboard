@@ -109,6 +109,52 @@ struct Stage10RPresentationTests {
         #expect(selected.sourceURL == "https://source.invalid/meeting?q=原始")
     }
 
+    @Test("Today agenda uses confirmed schedule changes and only includes the selected day")
+    func todayAgendaIncludesConfirmedChanges() throws {
+        let courseID = UUID()
+        let meetingID = UUID()
+        let announcementID = UUID()
+        let meeting = CourseMeeting(
+            id: meetingID, courseID: courseID, title: "Original meeting",
+            start: date(2026, 9, 7, 9), end: date(2026, 9, 7, 10), location: "Room 1",
+            source: .siweb, isCancelled: false, sourceURL: nil
+        )
+        let snapshot = DashboardSnapshot(
+            sourceHealth: [], courses: [course(courseID)], meetings: [meeting], tasks: [],
+            announcements: [Announcement(
+                id: announcementID, sourceObjectID: "announcement", courseID: courseID,
+                title: "Class moved", summary: "New time", publishedAt: date(2026, 9, 6),
+                source: .canvas, isLocallyRead: false, sourceURL: nil
+            )], confirmations: []
+        )
+        let change = signal(
+            category: .courseScheduleChange, state: .confirmed,
+            date: date(2026, 9, 8, 11), courseID: courseID, announcementID: announcementID,
+            targetMeetingID: meetingID
+        )
+
+        #expect(TodayPresentation.agendaEvents(
+            from: snapshot, academicSignals: [change], on: date(2026, 9, 7), timeZone: macau
+        ).isEmpty)
+        let moved = try #require(TodayPresentation.agendaEvents(
+            from: snapshot, academicSignals: [change], on: date(2026, 9, 8), timeZone: macau
+        ).first)
+        #expect(moved.start == date(2026, 9, 8, 11))
+        #expect(moved.title.contains("[CHANGED]"))
+    }
+
+    @Test("Today schedule updates prioritize review and exclude dismissed signals")
+    func todayScheduleUpdates() {
+        let courseID = UUID()
+        let confirmed = signal(category: .makeupClass, state: .confirmed, date: date(2026, 9, 9), courseID: courseID)
+        let pending = signal(category: .courseScheduleChange, state: .pending, date: date(2026, 9, 8), courseID: courseID)
+        let rejected = signal(category: .makeupClass, state: .rejected, date: date(2026, 9, 10), courseID: courseID)
+        let unrelated = signal(category: .examTime, state: .pending, date: date(2026, 9, 11), courseID: courseID)
+
+        let updates = TodayPresentation.scheduleUpdates([confirmed, rejected, unrelated, pending])
+        #expect(updates.map(\.id) == [pending.id, confirmed.id])
+    }
+
     private func event(_ id: String, start: Date, end: Date) -> CalendarEvent {
         CalendarEvent(id: id, objectID: UUID(), courseID: UUID(), title: id, start: start, end: end,
                       isAllDay: false, kind: .courseMeeting, source: .siweb, location: "", isCancelled: false, sourceURL: nil)
@@ -124,6 +170,27 @@ struct Stage10RPresentationTests {
                      suggestedCompleteAt: suggested, suggestedDateConfirmed: confirmed, source: .canvas,
                      isLocallyComplete: false, localPriority: .medium, officialDueIsAllDay: allDay,
                      sourceURL: "https://source.invalid/task?q=原始")
+    }
+
+    private func signal(
+        category: AcademicSignalCategory,
+        state: AcademicSignalConfirmationState,
+        date: Date,
+        courseID: UUID,
+        announcementID: UUID = UUID(),
+        targetMeetingID: UUID? = nil
+    ) -> AcademicSignalRecord {
+        AcademicSignalRecord(
+            id: UUID(), analysisID: UUID(), announcementID: announcementID,
+            sourceAccountID: "canvas", sourceObjectID: UUID().uuidString,
+            category: category, evidence: "Schedule changed", keyRequirement: "Updated class",
+            inferredDate: date, isAllDay: false, timeZoneIdentifier: macau.identifier,
+            confidence: 1, reason: "Explicit", conflicts: [], provider: "deterministic",
+            model: "local", promptVersion: "v1", schemaVersion: "v1",
+            confirmationState: state, adoptedCategory: nil, adoptedDate: date,
+            adoptedIsAllDay: false, courseID: courseID, targetMeetingID: targetMeetingID,
+            createdAt: date.addingTimeInterval(-60), updatedAt: date
+        )
     }
 
     private func date(_ year: Int, _ month: Int, _ day: Int, _ hour: Int = 0, _ minute: Int = 0) -> Date {

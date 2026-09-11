@@ -2,18 +2,13 @@ import SwiftUI
 
 struct TodayView: View {
     @ObservedObject var model: DashboardModel
-    @State private var weekAnchor: Date
     @State private var selectedEvent: CalendarEvent?
 
-    init(model: DashboardModel) {
-        self.model = model
-        _weekAnchor = State(initialValue: model.now)
-    }
-
     var body: some View {
-        PageContainer(title: model.text("Today"), subtitle: weekTitle) {
+        PageContainer(title: model.text("Today"), subtitle: model.todaySubtitle) {
             VStack(alignment: .leading, spacing: 12) {
                 compactStatus
+                calendarDeliveryNotice
                 if model.isPreviewMode && [.loading, .error, .permissionDenied].contains(model.scenario) {
                     PreviewOperationalState(model: model)
                 } else if let error = model.persistenceError {
@@ -24,57 +19,17 @@ struct TodayView: View {
                     )
                 } else {
                     HStack(alignment: .top, spacing: 12) {
-                        timetable.frame(maxWidth: .infinity)
-                        announcementSidebar.frame(width: 230)
+                        VStack(alignment: .leading, spacing: 12) {
+                            todayAgenda
+                            dueTodayCard
+                        }
+                        .frame(maxWidth: .infinity)
+                        VStack(alignment: .leading, spacing: 12) {
+                            scheduleUpdatesCard
+                            announcementSidebar
+                        }
+                        .frame(width: 300)
                     }
-                }
-            }
-        }
-    }
-
-    private var weekRange: CalendarRange {
-        CalendarDateMath.range(for: .week, anchor: weekAnchor, timeZone: model.presentationTimeZone)
-    }
-
-    private var weekTitle: String {
-        let dates = weekRange.dates
-        guard let first = dates.first, let last = dates.last else { return model.todaySubtitle }
-        return model.format(first, date: .abbreviated, time: .omitted) + " – "
-            + model.format(last, date: .abbreviated, time: .omitted)
-    }
-
-    private var weekMeetings: [CalendarEvent] {
-        CalendarPresentation.events(from: model.snapshot).filter {
-            $0.kind == .courseMeeting && $0.start < weekRange.end && $0.end > weekRange.start
-        }
-    }
-
-    private var timetable: some View {
-        Card {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(model.text("Weekly timetable")).font(.headline)
-                        Text(model.text("Monday through Sunday")).font(.caption).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Button { moveWeek(-1) } label: { Image(systemName: "chevron.left") }
-                        .help(model.text("Previous week")).accessibilityLabel(model.text("Previous week"))
-                    Button(model.text("Current week")) { weekAnchor = model.now }
-                    Button { moveWeek(1) } label: { Image(systemName: "chevron.right") }
-                        .help(model.text("Next week")).accessibilityLabel(model.text("Next week"))
-                }
-                if weekMeetings.isEmpty {
-                    StatePanel(
-                        icon: "calendar", title: model.text("No classes this week"),
-                        message: model.text("No synchronized course meetings fall in this week."), tint: .secondary
-                    )
-                    .frame(minHeight: 720)
-                } else {
-                    SpatialTimeGrid(
-                        days: weekRange.dates, events: weekMeetings, language: model.language,
-                        timeZone: model.presentationTimeZone, now: model.now, showsAllDay: true
-                    ) { selectedEvent = $0 }
                 }
             }
         }
@@ -83,22 +38,147 @@ struct TodayView: View {
         }
     }
 
+    private var agendaEvents: [CalendarEvent] {
+        TodayPresentation.agendaEvents(
+            from: model.snapshot, academicSignals: model.academicSignals,
+            on: model.now, timeZone: model.presentationTimeZone
+        )
+    }
+
+    private var scheduleUpdates: [AcademicSignalRecord] {
+        Array(TodayPresentation.scheduleUpdates(model.academicSignals).prefix(5))
+    }
+
+    private var dueTasks: [LearningTask] {
+        TodayPresentation.dueTasks(
+            from: model.snapshot, on: model.now, timeZone: model.presentationTimeZone
+        )
+    }
+
+    private var todayAgenda: some View {
+        Card {
+            VStack(alignment: .leading, spacing: 10) {
+                sectionHeading("Today's agenda", detail: "A focused list for today", count: agendaEvents.count)
+                if agendaEvents.isEmpty {
+                    ContentUnavailableView(
+                        model.text("Nothing scheduled today"), systemImage: "sun.max",
+                        description: Text(model.text("Confirmed changes appear here automatically."))
+                    )
+                    .frame(minHeight: 230)
+                } else {
+                    ForEach(agendaEvents) { event in
+                        Button { selectedEvent = event } label: {
+                            HStack(alignment: .top, spacing: 12) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(event.isAllDay ? model.text("All-day") : model.format(event.start, date: .omitted, time: .shortened))
+                                        .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                                    if !event.isAllDay {
+                                        Text(model.format(event.end, date: .omitted, time: .shortened))
+                                            .font(.caption2.monospacedDigit()).foregroundStyle(.tertiary)
+                                    }
+                                }
+                                .frame(width: 64, alignment: .leading)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(event.title).font(.subheadline.weight(.semibold)).lineLimit(2)
+                                    Text(eventSubtitle(event)).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                }
+                                Spacer()
+                                if event.isCancelled {
+                                    Badge(text: model.text("Cancelled"), color: .red)
+                                } else if event.relatedSourceURL != nil || event.kind == .confirmedScheduleChange {
+                                    Badge(text: model.text("Changed"), color: .teal)
+                                }
+                                Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        Divider()
+                    }
+                }
+            }
+        }
+    }
+
+    private var dueTodayCard: some View {
+        Card {
+            VStack(alignment: .leading, spacing: 10) {
+                sectionHeading("Due today", detail: nil, count: dueTasks.count)
+                if dueTasks.isEmpty {
+                    Text(model.text("Nothing due today")).font(.caption).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
+                } else {
+                    ForEach(dueTasks) { task in
+                        HStack(spacing: 10) {
+                            Button { model.toggleTask(task.id) } label: {
+                                Image(systemName: task.isLocallyComplete ? "checkmark.circle.fill" : "circle")
+                            }
+                            .buttonStyle(.plain)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(task.title).font(.subheadline.weight(.semibold)).lineLimit(2)
+                                Text(courseName(task.courseID)).font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if let due = task.officialDueAt {
+                                Text(task.officialDueIsAllDay ? model.text("All-day") : model.format(due, date: .omitted, time: .shortened))
+                                    .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var scheduleUpdatesCard: some View {
+        Card {
+            VStack(alignment: .leading, spacing: 10) {
+                sectionHeading("Schedule updates", detail: nil, count: scheduleUpdates.count)
+                if scheduleUpdates.isEmpty {
+                    ContentUnavailableView(
+                        model.text("No schedule updates"), systemImage: "calendar.badge.checkmark",
+                        description: Text(model.text("Confirmed and pending course changes appear here."))
+                    )
+                    .frame(minHeight: 130)
+                } else {
+                    ForEach(scheduleUpdates) { signal in
+                        VStack(alignment: .leading, spacing: 5) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(signal.adoptedKeyRequirement ?? signal.keyRequirement)
+                                    .font(.subheadline.weight(.semibold)).lineLimit(3)
+                                Spacer()
+                                Badge(text: model.text(updateState(signal)), color: updateColor(signal))
+                            }
+                            Text(updateCourseName(signal)).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            if let date = signal.adoptedDate ?? signal.inferredDate {
+                                Text(model.format(date)).font(.caption2).foregroundStyle(.secondary)
+                            }
+                            if NeedsReviewPolicy.includes(signal) {
+                                Button(model.text("Review")) { model.selectedSection = .confirmations }
+                                    .font(.caption)
+                            } else if let url = sourceURL(signal) {
+                                Link(model.text("Open change announcement"), destination: url).font(.caption)
+                            }
+                        }
+                        Divider()
+                    }
+                }
+            }
+        }
+    }
+
     private var announcementSidebar: some View {
         Card {
             VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text(model.text("Unread announcements")).font(.headline)
-                    Spacer()
-                    Badge(text: "\(model.unreadAnnouncements.count)", color: .blue)
-                }
+                sectionHeading("Unread announcements", detail: nil, count: model.unreadAnnouncements.count)
                 if model.unreadAnnouncements.isEmpty {
                     ContentUnavailableView(
                         model.text("No unread announcements"), systemImage: "megaphone",
                         description: Text(model.text("New announcements will appear here until you mark them read."))
                     )
-                    .frame(minHeight: 260)
+                    .frame(minHeight: 170)
                 } else {
-                    ForEach(model.unreadAnnouncements.sorted(by: { $0.publishedAt > $1.publishedAt })) { item in
+                    ForEach(model.unreadAnnouncements.sorted(by: { $0.publishedAt > $1.publishedAt }).prefix(5)) { item in
                         VStack(alignment: .leading, spacing: 5) {
                             Text(item.title).font(.subheadline.weight(.semibold)).lineLimit(3)
                             Text(courseName(item.courseID)).font(.caption).foregroundStyle(.secondary).lineLimit(2)
@@ -113,13 +193,29 @@ struct TodayView: View {
                             }.font(.caption)
                         }
                         .padding(.vertical, 4)
-                        .accessibilityElement(children: .contain)
                         Divider()
                     }
                 }
             }
         }
         .accessibilityLabel(model.text("Unread announcements"))
+    }
+
+    @ViewBuilder
+    private var calendarDeliveryNotice: some View {
+        if model.calendarDeliverySummary.pendingCount > 0 {
+            HStack(spacing: 10) {
+                Image(systemName: "icloud.slash").foregroundStyle(.orange)
+                Text("\(model.calendarDeliverySummary.pendingCount) \(model.text("Calendar changes waiting"))")
+                    .font(.subheadline.weight(.semibold))
+                Text(model.text("Calendar changes are waiting to retry. Existing iCloud events remain untouched."))
+                    .font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Button(model.text("Open Settings")) { model.selectedSection = .settings }
+            }
+            .padding(12)
+            .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
+        }
     }
 
     private var compactStatus: some View {
@@ -154,13 +250,89 @@ struct TodayView: View {
         } + [(model.text("Background sync"), model.text(model.backgroundMessage), model.backgroundConfiguration.enabled)]
     }
 
-    private func moveWeek(_ direction: Int) {
-        weekAnchor = CalendarDateMath.movedAnchor(
-            weekAnchor, mode: .week, direction: direction, timeZone: model.presentationTimeZone
-        )
+    private func sectionHeading(_ title: String, detail: String?, count: Int) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(model.text(title)).font(.headline)
+                if let detail { Text(model.text(detail)).font(.caption).foregroundStyle(.secondary) }
+            }
+            Spacer()
+            Badge(text: "\(count)", color: .blue)
+        }
+    }
+
+    private func eventSubtitle(_ event: CalendarEvent) -> String {
+        [courseName(event.courseID), event.location].filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
     private func courseName(_ id: UUID) -> String {
         model.snapshot.course(for: id)?.name ?? model.text("Unknown course")
+    }
+
+    private func updateCourseName(_ signal: AcademicSignalRecord) -> String {
+        if let id = signal.courseID { return courseName(id) }
+        guard let announcement = model.snapshot.announcements.first(where: { $0.id == signal.announcementID }) else {
+            return model.text("Unknown course")
+        }
+        return courseName(announcement.courseID)
+    }
+
+    private func sourceURL(_ signal: AcademicSignalRecord) -> URL? {
+        model.snapshot.announcements.first(where: { $0.id == signal.announcementID })
+            .flatMap { $0.sourceURL }.flatMap(URL.init(string:))
+    }
+
+    private func updateState(_ signal: AcademicSignalRecord) -> String {
+        switch signal.confirmationState {
+        case .confirmed: "Confirmed"
+        case .corrected: "Corrected"
+        default: "Pending"
+        }
+    }
+
+    private func updateColor(_ signal: AcademicSignalRecord) -> Color {
+        NeedsReviewPolicy.includes(signal) ? .orange : .teal
+    }
+}
+
+enum TodayPresentation {
+    static func agendaEvents(
+        from snapshot: DashboardSnapshot,
+        academicSignals: [AcademicSignalRecord],
+        on date: Date,
+        timeZone: TimeZone
+    ) -> [CalendarEvent] {
+        let range = CalendarDateMath.range(for: .day, anchor: date, timeZone: timeZone)
+        return CalendarPresentation.events(from: snapshot, academicSignals: academicSignals).filter {
+            $0.start < range.end && $0.end > range.start
+        }
+    }
+
+    static func dueTasks(
+        from snapshot: DashboardSnapshot,
+        on date: Date,
+        timeZone: TimeZone
+    ) -> [LearningTask] {
+        let calendar = CalendarDateMath.calendar(timeZone: timeZone)
+        return snapshot.tasks.filter {
+            !$0.isPlaceholder && $0.officialDueAt.map { calendar.isDate($0, inSameDayAs: date) } == true
+        }.sorted {
+            ($0.officialDueAt ?? .distantFuture, $0.id.uuidString)
+                < ($1.officialDueAt ?? .distantFuture, $1.id.uuidString)
+        }
+    }
+
+    static func scheduleUpdates(_ signals: [AcademicSignalRecord]) -> [AcademicSignalRecord] {
+        signals.filter { signal in
+            let category = signal.adoptedCategory ?? signal.category
+            return [.courseScheduleChange, .makeupClass].contains(category)
+                && ![.rejected, .undone, .notRequired].contains(signal.confirmationState)
+        }.sorted { lhs, rhs in
+            let lhsNeedsReview = NeedsReviewPolicy.includes(lhs)
+            let rhsNeedsReview = NeedsReviewPolicy.includes(rhs)
+            if lhsNeedsReview != rhsNeedsReview { return lhsNeedsReview }
+            if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt > rhs.updatedAt }
+            return lhs.id.uuidString < rhs.id.uuidString
+        }
     }
 }

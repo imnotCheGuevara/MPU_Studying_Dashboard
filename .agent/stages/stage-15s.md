@@ -15,7 +15,7 @@ Repair the release-blocking real case where a Canvas announcement for sections 3
 - Validate any provider date against the eligible meeting candidates. A cancellation may modify only one uniquely resolved app-visible SIweb meeting. Ambiguous, conflicting, nonmatching, or multi-section results must remain visibly `需要确认`; they must not become a standalone schedule-change event.
 - A schedule-change signal that is `confirmed/corrected` but later loses its target meeting is unsafe. It must immediately become Calendar-ineligible, be surfaced for review/correction, and reconcile away only an app-owned bound Calendar effect. Do not delete source records or silently invent a new target.
 - No confidence threshold may bypass confirmation. The UI must offer correction for provider-unavailable, `other`, pending, and unsafe previously-confirmed results. Calendar preview must identify the exact meeting and effect before the user confirms.
-- Preserve distinct exam styling and all existing Apple Calendar ownership boundaries. Outlook remains dormant.
+- Preserve distinct exam styling and all existing Apple Calendar ownership boundaries. Mailbox integration remains absent.
 - Add privacy-safe migration/recovery for the existing invalid state without embedding real announcement text in code, tests, logs, commits, or handoff. Do not mutate the real database from tests.
 
 ## Regression tests and acceptance
@@ -24,7 +24,7 @@ Repair the release-blocking real case where a Canvas announcement for sections 3
 - Cover wrong provider date, multiple candidate dates, no matching meeting, target disappearing after resync, and stale `confirmed + no_target` state.
 - Assert none of those unsafe states appears as a standalone app-calendar event, Apple Calendar write, or deadline notification; they remain correctable and require explicit confirmation.
 - Assert an explicitly previewed and user-confirmed unique cancellation modifies the existing course meeting rather than creating a duplicate standalone event; undo restores it idempotently.
-- Run focused academic-signal, reconciliation, Calendar, notification, and presentation tests, then the complete required gate from `.agent/CURRENT.md`, build/signature verification, diff check, credential/private-data scan, and Outlook no-traffic assertion.
+- Run focused academic-signal, reconciliation, Calendar, notification, and presentation tests, then the complete required gate from `.agent/CURRENT.md`, build/signature verification, diff check, credential/private-data scan, and mailbox-path absence assertion.
 - Perform a privacy-safe signed-app real walkthrough against the existing authorized data. Report only identifiers, counts, states, timestamps, and pass/fail—not announcement bodies, credentials, cookies, tokens, or private page content. Stop at any action that would create/update/delete an EventKit event unless the user gives action-time confirmation in the main conversation.
 
 ## Handoff

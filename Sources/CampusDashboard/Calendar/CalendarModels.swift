@@ -8,6 +8,13 @@ enum CalendarAccessStatus: String, Equatable, Sendable {
     case writeOnly = "write_only"
 }
 
+struct CalendarDeliverySummary: Equatable, Sendable {
+    let pendingCount: Int
+    let maximumAttemptCount: Int
+
+    static let empty = CalendarDeliverySummary(pendingCount: 0, maximumAttemptCount: 0)
+}
+
 enum CalendarSourceKind: String, Equatable, Sendable {
     case iCloud
     case local

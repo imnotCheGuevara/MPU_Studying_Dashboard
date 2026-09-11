@@ -20,7 +20,7 @@ Build the minimum outbound payload from title, bounded sanitized body excerpt, m
 
 Add local UI for classification status, category filtering, evidence/reason/conflict inspection, reprocess, disable, correct/reject/confirm, and original-source navigation. Do not pretend AI labels are Canvas facts. Use red for official assignment/quiz deadline events in the app's own Schedule presentation while retaining an explicit deadline symbol/text so color is not the sole cue; this does not change the Apple Calendar per-calendar color model.
 
-Allowed scope: Canvas announcement read models, AI orchestration and persistence for AcademicSignal, confirmation workflow, Announcements/Schedule/Settings localization and presentation, additive migrations, focused tests, and .agent/handoffs/stage-12.md. Do not change the Canvas connector's read-only contract, Outlook, Apple Calendar ownership, notification policy, or Phase 2 planning.
+Allowed scope: Canvas announcement read models, AI orchestration and persistence for AcademicSignal, confirmation workflow, Announcements/Schedule/Settings localization and presentation, additive migrations, focused tests, and .agent/handoffs/stage-12.md. Do not change the Canvas connector's read-only contract, add mailbox integration, alter Apple Calendar ownership or notification policy, or begin Phase 2 planning.
 
 Acceptance:
 - A synthetic multilingual evaluation set covers all four categories, multi-signal announcements, no-signal/other, schedule change, assignment DDL, exam/Quiz time, conflicting dates, vague dates, all-day versus timed dates, timezone, long/noisy HTML, adversarial prompt injection, duplicates, and updated announcements.
@@ -31,4 +31,4 @@ Acceptance:
 - App Schedule tests prove official Assignment/Quiz deadlines are red plus text/symbol, confirmed inferred dates remain visually distinct, and unconfirmed dates remain absent.
 - Full suite, clean/release build, signed app, security/privacy scans, and a user-authorized real Canvas-announcement smoke with privacy-safe aggregate evidence pass. Real private announcement text/output must not enter fixtures, screenshots, logs, or handoff.
 
-Write .agent/handoffs/stage-12.md with PASS, PARTIAL, or BLOCKED and exact evidence. Do not begin Outlook or Stage 13.
+Write .agent/handoffs/stage-12.md with PASS, PARTIAL, or BLOCKED and exact evidence. Do not begin unapproved integrations or another stage.

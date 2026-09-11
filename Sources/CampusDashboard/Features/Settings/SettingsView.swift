@@ -125,13 +125,6 @@ struct SettingsView: View {
                             }
                         }
                     }
-                    settingsCard(model.text("School Outlook"), icon: "pause.circle") {
-                        Label(model.text("Paused for school-policy review"), systemImage: "pause.circle.fill")
-                            .font(.headline).foregroundStyle(.secondary)
-                        Text(model.text("Outlook has no setup controls, background authorization, token lookup, mailbox probe, or network traffic in this release."))
-                            .font(.caption).foregroundStyle(.secondary)
-                            .accessibilityIdentifier("outlook-paused-no-traffic")
-                    }
                     if !model.recoveryItems.isEmpty {
                         settingsCard(model.text("Recovery center"), icon: "cross.case") {
                             ForEach(model.recoveryItems) { item in

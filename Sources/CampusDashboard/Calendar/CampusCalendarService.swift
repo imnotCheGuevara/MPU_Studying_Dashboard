@@ -115,6 +115,23 @@ actor CampusCalendarService: CalendarService {
         try persistence.identity()
     }
 
+    /// Aggregate-only status for the dashboard. It exposes no event, course,
+    /// Calendar, or source identifiers.
+    func deliverySummary() throws -> CalendarDeliverySummary {
+        let row = try database.query(
+            """
+            SELECT COUNT(*) AS pending_count,
+                   COALESCE(MAX(attempt_count),0) AS maximum_attempt_count
+            FROM outbox_work
+            WHERE kind LIKE 'calendar.%' AND state='pending'
+            """
+        ).first
+        return CalendarDeliverySummary(
+            pendingCount: Int(row?.int("pending_count") ?? 0),
+            maximumAttemptCount: Int(row?.int("maximum_attempt_count") ?? 0)
+        )
+    }
+
     /// Read-only preview for the explicit review gate. It never touches EventKit.
     func previewAcademicSignal(signalID: UUID) async throws -> CalendarChangePreview {
         // Preview remains available before Calendar permission/configuration so

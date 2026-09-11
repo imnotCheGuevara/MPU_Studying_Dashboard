@@ -124,3 +124,45 @@ No central control file was edited, no commit was created, and no future stage w
 - `./scripts/build-app.sh`, `./scripts/verify-app.sh`, strict `codesign` verification, `git diff --check`, targeted credential/private-network scan, and Outlook-path diff scan — PASS.
 - Rebuilt and relaunched candidate: `0.3.0 (4)`, executable SHA-256 `c28e70dc4bb1050a2d6aab528fd33d75637a63d8fe3e1121c653b5bb7608ff88`, CDHash `9bbdbaf4f8cfbc01e1e73f997540942aa96468af`.
 - Stage remains `PARTIAL`: the user still needs to inspect a real cancellation preview and provide fresh action-time approval immediately before any confirm/undo in the dedicated Campus Dashboard calendar. No real Calendar mutation was performed in this repair.
+
+## Main-conversation Today and iCloud delivery visibility repair — 2026-09-08
+
+- Replaced Today's duplicate weekly timetable with a focused current-day dashboard: chronological agenda, tasks due today, schedule-change review/confirmation summary, and unread announcements. Schedule remains the only full day/week/month time grid.
+- Today now builds its agenda through the same academic-signal-aware presentation path as Schedule. Confirmed/corrected exact-meeting changes move or cancel the meeting on the correct day, and confirmed make-up events appear without a second source of truth.
+- Added an aggregate-only Calendar delivery summary. The app reports pending Calendar retry work after launch, background completion, and manual refresh without exposing event, course, Calendar, or source identifiers.
+- A read-only aggregate inspection found the configured dedicated calendar is a valid user-selected iCloud calendar, all 82 existing bindings point to it, and eight Calendar reconciliation items remain pending after repeated delivery failures. No Calendar event was read or changed and no outbox retry was triggered.
+- Added regression coverage proving Today uses confirmed schedule changes, excludes the old day after a move, and prioritizes actionable schedule updates while excluding dismissed/unrelated signals.
+- `./scripts/test.sh` — PASS, 252 tests in 21 suites.
+- `./scripts/build-app.sh`, `./scripts/verify-app.sh`, strict `codesign`, `git diff --check`, targeted credential/private-network scan, and Outlook-path diff scan — PASS.
+- Signed synthetic UI/accessibility walkthrough — PASS. Today renders four summary cards and Schedule retains the distinct weekly time grid; no real source content was displayed.
+- Rebuilt candidate: `0.3.0 (4)`, executable SHA-256 `088d3519b0efc79a2d9d0c2c7da8458434a9757d968804ade6b903e15c1a93d8`, CDHash `17eb9eb51df244b9c62040999aaa2ee579716eaa`.
+- Stage remains `PARTIAL`. Resolving the eight pending Calendar deliveries or exercising confirm/undo can mutate the dedicated iCloud calendar and still requires an exact read-only preview plus fresh action-time approval. No real Calendar mutation was performed in this repair.
+
+## Authorized retry and permission blocker — 2026-09-08
+
+- The user explicitly approved retrying the eight already queued changes against the existing dedicated Campus Dashboard iCloud calendar.
+- One production refresh attempted the queue. All eight items remained pending and the maximum attempt count advanced from six to seven; the 82 existing synced bindings remained unchanged.
+- The signed app then reported that Calendar permission had been revoked. The bundle remains sandboxed with the Calendar entitlement, and the persisted dedicated identity remains `valid`, `iCloud`, and `user_selected`; the current macOS privacy grant is the blocking layer.
+- The app's Recover Calendar action could not restore a revoked grant. macOS Calendar privacy settings were opened for the user. No Calendar create, update, cancellation, or removal succeeded during this attempt.
+- Do not retry again until the user explicitly re-enables Calendar access for Campus Dashboard in macOS System Settings. After access is restored, revalidate the dedicated identity before consuming the queue.
+
+## iCloud permission recovery and queued delivery — 2026-09-08
+
+- The user explicitly re-enabled full Calendar access and authorized modification of the dedicated Campus Dashboard iCloud calendar.
+- Root cause was four registered ad-hoc-signed app copies sharing `com.campusdashboard.desktop`; macOS could associate the visible privacy grant with an obsolete code requirement. The three worktree copies were preserved on disk but unregistered from Launch Services. The current production app was then reset, relaunched, and granted full Calendar access.
+- The live signed app revalidated the persisted identity as `valid / iCloud / user_selected` and displayed `Dedicated calendar verified in iCloud`.
+- All eight previously queued `calendar.reconcile` items completed. Aggregate-only verification changed from `84 completed / 8 pending` to `92 completed / 0 pending`.
+- Four remaining course-meeting reconciliations were protected by stale bindings to an earlier calendar identity. Two matching stale local binding rows were removed and all four objects were recreated or reconciled only in the current dedicated iCloud calendar. No event in the earlier calendar was deleted or modified.
+- The live binding table now contains 84 active records across the current and preserved legacy calendar identities. Stage 15S remains `PARTIAL` only because the separate real exact-cancellation preview/confirm/undo acceptance gate has not been exercised.
+- The production candidate is ad-hoc signed because this Mac has no developer signing identity. A later rebuild can therefore change the code requirement and require a fresh Calendar grant; stable distribution needs a Developer ID signature.
+
+## Main-conversation Outlook removal — 2026-09-11
+
+- At the user's explicit request, removed the Outlook OAuth/Graph connector implementation, its Settings and application/model paths, localization, UI-QA branch, dedicated tests, and the Outlook assessment document.
+- Removed former future Stage 13–14 plans and rewrote active constraints, roadmap/status, stage contracts, and the product specification so mailbox integration is no longer part of the product. Historical handoffs were preserved as immutable evidence.
+- `./scripts/test.sh` — PASS, 239 tests in 20 suites.
+- `./scripts/build-app.sh`, `./scripts/verify-app.sh`, strict `codesign` verification, and `git diff --check` — PASS.
+- Source, test, and release-executable scans found no Outlook, Microsoft Graph, Graph endpoint, or Mail.Read path. A targeted added-line scan found no credential-shaped value.
+- The rebuilt signed app remained running in isolated `--stage10r-ui-qa` synthetic mode before being terminated by exact PID. No real Canvas, SIweb, Calendar, OAuth, Graph, or mail access or mutation was performed.
+- Rebuilt candidate: `0.3.0 (4)`, executable SHA-256 `d5ee7a4f549bf96cc5c14044351df8e19d3cc035259158ac9e2cea59d174d682`, CDHash `71028af713336555023cab26bed328003ac78157`, ad-hoc signature.
+- Stage 15S remains `PARTIAL`: the separate real exact-cancellation preview/confirm/undo acceptance gate is unchanged and still requires fresh action-time approval for each Calendar mutation.

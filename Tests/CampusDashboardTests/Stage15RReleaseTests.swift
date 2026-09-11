@@ -4,11 +4,6 @@ import Testing
 
 @Suite("Stage 15R release readiness")
 struct Stage15RReleaseTests {
-    @Test("Outlook stays dormant in the release dependency graph")
-    func outlookDormancy() {
-        #expect(!AppEnvironment.outlookEnabledInRelease)
-    }
-
     @Test("First-run checklist is persistent and Keychain-backed sources are isolated")
     func setupChecklist() throws {
         try withReleaseService { service, canvasSecrets, siwebSecrets, defaults, _ in

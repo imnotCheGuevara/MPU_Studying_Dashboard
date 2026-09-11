@@ -21,7 +21,7 @@ Read older or larger material only when a concrete information gap exists. First
 - Credentials, API keys, cookies, access/refresh tokens, and allowed session secrets belong only in macOS Keychain. Never request them in chat or place them in source, databases, ordinary configuration, fixtures, logs, screenshots, diagnostics, commands, or handoffs.
 - AI operates only on already lawfully obtained minimum necessary content. It cannot log in, browse school systems, write to them, or directly change Calendar/notifications. Official source fields remain authoritative; every text-inferred date requires explicit user confirmation before Calendar or deadline-notification eligibility.
 - Apple Calendar work is limited to the app-owned or explicitly selected dedicated Campus Dashboard calendar. Never modify or delete personal, family, shared, subscribed, or unrelated events.
-- Outlook is read-only and currently paused. Do not register an app, authorize a tenant, read mail, or start Outlook stages until the main conversation explicitly resumes them after school-policy review. Never use passwords, IMAP credential reuse, application-wide mail permissions, write/send scopes, web scraping, or Outlook-to-DeepSeek transfer.
+- Outlook integration has been removed from the product and repository. Do not add mailbox authorization, Graph/mail access, scraping, or mail-to-AI transfer without a new explicit user-approved scope.
 - Preserve user changes and accepted-stage work. Inspect the worktree before editing; never use destructive Git or filesystem operations without explicit authorization.
 
 ## Ownership and stage gates

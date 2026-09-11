@@ -38,7 +38,7 @@ Record only local aggregate counts needed to measure placeholder suppression and
 
 ## Prohibited changes
 
-- No Canvas/SIweb writes, new credentials, secret handling, Outlook work/traffic, proxy or FlClash changes, or external training/upload of user corrections.
+- No Canvas/SIweb writes, new credentials, secret handling, mailbox integration, proxy or FlClash changes, or external training/upload of user corrections.
 - No direct AI control of Calendar/notifications and no Calendar eligibility for unconfirmed inferred dates.
 - No modification/deletion outside the dedicated Campus Dashboard calendar. No real EventKit mutation during automated testing or walkthrough without fresh action-time user approval.
 - Do not resolve the remaining Stage 15S real lifecycle gate in this task, begin the seven-day trial, freeze a release, or claim Stage 15/15R/15S acceptance.
@@ -49,7 +49,7 @@ Record only local aggregate counts needed to measure placeholder suppression and
 - Prove persistence/restart, repeated-sync idempotency, historical recomputation, persisted override, placeholder-to-active transition, and exactly-once downstream behavior.
 - Prove placeholders generate no AI/provider request, Calendar/outbox operation, deadline/new-task notification, or normal-list row.
 - Prove Needs Review filtering, badge counts, provider-unavailable correction, `other` correction, resolution removal, and Announcements retention across restart.
-- Regress Stage 15S exact-meeting cancellation, make-up event, inferred-date confirmation, exam styling, dedicated-calendar isolation, source read-only behavior, bilingual localization/accessibility, and Outlook dormancy.
+- Regress Stage 15S exact-meeting cancellation, make-up event, inferred-date confirmation, exam styling, dedicated-calendar isolation, source read-only behavior, bilingual localization/accessibility, and mailbox-path absence.
 - Run focused tests while developing, then the full suite, production build, app verification, strict signature verification, `git diff --check`, and targeted credential/private-data/prohibited-network scans. Perform a synthetic bilingual signed-app walkthrough without exposing real source text.
 
 ## Acceptance and handoff

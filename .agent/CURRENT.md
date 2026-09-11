@@ -1,24 +1,26 @@
 # Campus Dashboard current context
 
-Updated: 2026-09-08 Asia/Macau.
+Updated: 2026-09-11 Asia/Macau.
 
 ## Active state
 
 - **Stage 15T: ACCEPTED** at `2578312`. The information-noise repair is merged and independently verified.
 - **Stage 15S: PARTIAL.** Implementation and correction/make-up workflows are merged through `f3c967c`; the remaining gate is a real exact cancellation preview followed by separately approved confirm and undo operations in the dedicated Campus Dashboard calendar.
 - **Stage 15R / 15: PARTIAL.** Technical work is preserved. Acceptance and release freeze require the Stage 15S real Calendar gate plus a combined real signed-app Canvas/SIweb/UI check.
-- **Stage 10: PAUSED at 0/7.** Start only after the no-Outlook release candidate is accepted and frozen.
-- **Stages 13–14: PAUSED/DEFERRED.** Outlook remains outside this release pending school IT policy.
+- **Stage 10: PAUSED at 0/7.** Start only after the release candidate is accepted and frozen.
+- **Outlook removed.** The product code, settings entry, tests, assessment, and former future Stage 13–14 plans are absent from the active repository; only immutable historical handoffs may still mention the abandoned integration.
 - Latest accepted stage: **15T**. No new coding stage is authorized; the next activity is the user-assisted Stage 15S real lifecycle acceptance gate.
 
 ## Git and implementation
 
 - Branch `main`; Stage 15T product/tests/handoff commit: `2578312`. Main-thread acceptance is recorded in the current control commit.
-- Current signed candidate version is `0.3.0 (4)`. It passes 250 tests across 21 suites, production build, app verification, strict signing, targeted safety scans, and bilingual synthetic signed-app UI/accessibility walkthrough. It is not frozen yet.
+- Current signed candidate version is `0.3.0 (4)`. After Outlook removal it passes 239 tests across 20 suites, production build, app verification, strict signing, targeted safety scans, and an isolated synthetic signed-app launch. Today is now a focused current-day summary, Schedule remains the full calendar grid, and Today uses confirmed/corrected schedule changes. It is not frozen yet.
 - Announcements is the complete source feed. **待确认 / Needs Review** contains only unresolved actionable decisions; provider-unavailable and `other` results remain locally correctable, and resolved items leave the queue without disappearing from Announcements.
 - Deterministically empty Canvas assignment shells remain in SQLite under stable identity, are collapsed by course, and are excluded from normal task surfaces, AI, Calendar, and notifications. A due date, meaningful instructions, attachment, quiz/external activity, meaningful submission route, or explicit offline/reading/preparation requirement reactivates the same item. Evidence uncertainty fails open to visibility. The local always-show override persists.
 - Placeholder suppression/reactivation uses aggregate local counters only. Any time-saved figure must be explicitly formula-based and labeled as an estimate; synthetic results cannot support accuracy or resume claims.
 - Stage 15S resolves cancellation targets only when course/section/meeting identity uniquely matches a current SIweb meeting. Ambiguous, stale, wrong-section, targetless, or response-deadline signals stay pending and cannot reach Schedule, Calendar, or notifications. Make-up classes use a separate app-owned event path. Every inferred date still requires explicit confirmation.
+- The selected dedicated calendar is a valid user-selected iCloud calendar. On 2026-09-08 the user explicitly restored full Calendar access and authorized delivery of the eight queued reconciliation items. Duplicate Launch Services registrations for three preserved worktree app copies were removed, the current production app was reauthorized, and all eight items completed (`92` Calendar outbox rows completed, `0` pending). Two stale local binding rows for the old calendar identity were removed so their course meetings could be recreated in the current iCloud calendar; no old Calendar event was deleted or modified. The live app now reports `Dedicated calendar verified in iCloud`; iPhone arrival timing is controlled by iCloud.
+- This build is ad-hoc signed because no developer signing identity is installed. Rebuilding changes its macOS code requirement and can require Calendar reauthorization again; durable distribution should use a stable Developer ID signature.
 
 ## Stable decisions
 
@@ -27,7 +29,7 @@ Updated: 2026-09-08 Asia/Macau.
 - DeepSeek is opt-in and receives only minimum sanitized Canvas content. Do not modify FlClash/system proxy. Corrections stay local and are not uploaded as provider training data.
 - Official source fields win. Every text-inferred date requires explicit confirmation before Calendar or deadline-notification eligibility, regardless of confidence.
 - Calendar writes are limited to bound app-owned events in the dedicated Campus Dashboard calendar. Never touch personal, family, shared, subscribed, or unrelated events.
-- Outlook stays disabled, unconfigured, dormant, and excluded; no registration, authorization, Graph/mail access, scraping, or Outlook-to-DeepSeek transfer.
+- Mailbox integration is not part of the product. Do not reintroduce OAuth registration, Graph/mail access, scraping, or mailbox-to-DeepSeek transfer without a new main-conversation scope and school-policy review.
 
 ## Remaining gate and next task
 
@@ -55,4 +57,4 @@ For a no-code real acceptance session, do not repeat the full suite; verify the 
 
 ## Lightweight continuation
 
-Read only `AGENTS.md`, this file, `.agent/stages/stage-15s.md`, and the “Decision and remaining gate” plus “Required local user/administrator actions” ranges of `.agent/handoffs/stage-15s.md`, located first with `rg -n`. Read `.agent/handoffs/stage-15t.md` only if a concrete Stage 15T regression or evidence gap appears. Do not read all handoffs, the full specification, Outlook history, or the historical prompt collection.
+Read only `AGENTS.md`, this file, `.agent/stages/stage-15s.md`, and the “Decision and remaining gate” plus “Required local user/administrator actions” ranges of `.agent/handoffs/stage-15s.md`, located first with `rg -n`. Read `.agent/handoffs/stage-15t.md` only if a concrete Stage 15T regression or evidence gap appears. Do not read all handoffs, the full specification, removed-mailbox history, or the historical prompt collection.

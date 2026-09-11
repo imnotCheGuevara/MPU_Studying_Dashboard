@@ -6,7 +6,7 @@ Read only `AGENTS.md`, `.agent/CURRENT.md`, this file, and `.agent/handoffs/stag
 
 ## Prerequisite gate
 
-Stages 10R and 12 must be accepted, Stage 10 must remain paused at 0/7, and Stage 15 must be explicitly READY or IN PROGRESS. Outlook Stages 13–14 must remain paused/deferred. Confirm the exact state in `.agent/CURRENT.md`; otherwise stop without implementation.
+Stages 10R and 12 must be accepted, Stage 10 must remain paused at 0/7, and Stage 15 must be explicitly READY or IN PROGRESS. Confirm the exact state in `.agent/CURRENT.md`; otherwise stop without implementation.
 
 ## Stage contract
 
@@ -14,7 +14,7 @@ You own Stage 15 only: final integration hardening, acceptance repair, and relea
 
 Exercise the complete supported workflow together on the final signed app. Fix only acceptance-affecting defects inside this approved scope and add regression tests. Verify independent source failures, manual/hourly sync, restart/offline/sleep recovery, DeepSeek opt-in/rotation/revocation/rate-limit behavior, confirmation gating, Calendar and notification reconciliation, local clearing, localization, accessibility, performance, and earlier-stage regressions.
 
-Outlook is excluded. Its dormant code and offline evidence may remain in the repository, but the release candidate must leave it disabled and unconfigured and must make no Outlook authorization, Microsoft Graph, or mail request. Do not implement, repair, remove, authorize, or test Outlook functionality beyond a focused assertion that it remains dormant. Do not send Outlook data to DeepSeek.
+Mailbox integration is excluded and absent from the product. The release candidate must not contain a mailbox authorization or mail-network path, and no mail data may be sent to DeepSeek.
 
 The following field defects are acceptance-affecting and are explicitly in scope:
 
@@ -39,10 +39,10 @@ Acceptance:
 - Confirmed schedule changes and exams reconcile to the in-app calendar and the dedicated Apple Calendar without duplicates; unconfirmed items do not. Exams have an accessible distinct in-app treatment and a non-color Apple Calendar marker.
 - Apple Calendar writes remain confined to bound events in the dedicated Campus Dashboard calendar; repeated reconciliation creates no duplicate events or notifications.
 - DeepSeek sends only consented minimum Canvas announcement fields, uses Keychain credentials and exact-host routing, and remains safely disableable.
-- Outlook is disabled/unconfigured and produces no authorization, Graph, mail, or DeepSeek traffic.
+- The source tree and built product contain no mailbox authorization, mail-network, or mail-to-DeepSeek path.
 - Credential, payload, response, diagnostics, fixture, Calendar-ownership, and prohibited-network scans pass.
 - English and Simplified Chinese UI, accessibility, responsiveness, clean/release build, app verification, and code signing pass.
 - The handoff includes reproducible aggregate metrics and an evidence-based time-saved estimate suitable for later resume wording, with no private source text or invented claim.
 - A reproducible signed release candidate is identified by build commands, SHA-256 and signing identity/CDHash in the handoff. No feature change is allowed before Stage 10 without invalidating the freeze.
 
-Write `.agent/handoffs/stage-15.md` with `PASS`, `PARTIAL`, or `BLOCKED`; changed files; commands and concise results; aggregate real-service evidence; Outlook-dormancy evidence; defect/fix and correction-learning evidence; calendar/exam evidence; measurement method/results; frozen release-candidate identity; and remaining risks for Stage 10. Do not include private announcement text. Do not begin Stage 10 or the seven-day trial.
+Write `.agent/handoffs/stage-15.md` with `PASS`, `PARTIAL`, or `BLOCKED`; changed files; commands and concise results; aggregate real-service evidence; mailbox-path absence evidence; defect/fix and correction-learning evidence; calendar/exam evidence; measurement method/results; frozen release-candidate identity; and remaining risks for Stage 10. Do not include private announcement text. Do not begin Stage 10 or the seven-day trial.

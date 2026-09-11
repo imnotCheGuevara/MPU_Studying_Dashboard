@@ -9,7 +9,7 @@ These constraints apply to every stage and take precedence over implementation c
 - Canvas uses its API. The school website/SIweb uses an authorized, read-only crawler.
 - Phase 1 does not submit assignments or quizzes, change attendance or school records, mark remote content read/completed, or write to any school system.
 - Phase 1 does not add multi-user accounts, a cloud backend, a public release, or a native iPhone app.
-- After Phase 1 acceptance, the approved extension adds an explicitly enabled DeepSeek API provider for Canvas-announcement classification and a read-only Microsoft Graph connector for the signed-in user's school Outlook mailbox. It does not add AI study planning or autonomous actions.
+- The approved extension adds an explicitly enabled DeepSeek API provider for Canvas-announcement classification. It does not add AI study planning, autonomous actions, or mailbox integration.
 
 ## 2. Source access
 
@@ -20,9 +20,6 @@ These constraints apply to every stage and take precedence over implementation c
 - Treat HTML/DOM changes as a connector failure. Do not silently emit guessed course data.
 - Each connector must implement bounded concurrency, rate limiting, timeout handling, retry rules, and redacted diagnostics.
 - A failure in one source must not block the other source.
-- Outlook access must use Microsoft Graph with interactive delegated authorization for the signed-in school account. Start with the least privilege that can meet the active feature (`Mail.ReadBasic` for metadata-only validation; `Mail.Read` only when the user explicitly enables body analysis). Never request application-wide mailbox access, `Mail.ReadWrite`, mail sending, mailbox modification, a client secret embedded in the app, password capture, IMAP credential reuse, or Outlook web scraping.
-- Microsoft Entra tenant consent, Conditional Access, and school policy are hard gates. If the school tenant blocks the app or requires administrator approval, report the gate; never bypass it with another authentication or scraping route.
-- Outlook reads are limited to user-selected folders and a bounded recent window. Use Graph change tracking where available, honor `Retry-After`, and treat invalid/expired delta state as a controlled resynchronization rather than deletion evidence.
 
 ## 3. Data architecture
 
@@ -67,7 +64,7 @@ These constraints apply to every stage and take precedence over implementation c
 - Never ask the user to paste a credential into a task message. Use an interactive app flow, Keychain, or a non-echoing local mechanism.
 - Redact authorization headers, cookies, URL secrets, identifiers, response bodies, and personal content from diagnostics.
 - Fixtures and sample data must be synthetic or irreversibly sanitized.
-- Outlook access/refresh tokens and the DeepSeek API key are Keychain-only. Mail bodies, announcement bodies, AI payloads, provider responses, sender addresses, Graph delta links/tokens, and remote request identifiers must not appear in logs, diagnostics, screenshots, fixtures, or handoffs.
+- The DeepSeek API key is Keychain-only. Announcement bodies, AI payloads, provider responses, and remote request identifiers must not appear in logs, diagnostics, screenshots, fixtures, or handoffs.
 - Local data and logs must support explicit category-based clearing. Clearing local state must not implicitly delete calendar events.
 
 ## 7. macOS behavior

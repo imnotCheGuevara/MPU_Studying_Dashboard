@@ -20,7 +20,7 @@ Add an explicit Settings flow that is off by default and, before enablement, sho
 
 The macOS system proxy is the default route. If credential-free evidence proves it breaks DeepSeek TLS, add an off-by-default Settings option for direct HTTPS to the exact `api.deepseek.com` host only. Enabling it requires an explicit user action and localized disclosure that DeepSeek traffic will bypass the system proxy; it must not alter FlClash/VPN, global proxy settings, other hosts, or other apps. Persist only the boolean routing preference, never proxy credentials or configuration.
 
-Allowed scope: Sources/CampusDashboard/AI, the narrow Settings/Localization surfaces required for provider configuration and consent, Keychain-backed provider configuration, additive migrations/provenance fields if necessary, focused tests, implementation docs, and .agent/handoffs/stage-11.md. Do not classify production Canvas announcements, add Outlook, alter official/inferred-date rules, call EventKit/notifications, or begin study planning.
+Allowed scope: Sources/CampusDashboard/AI, the narrow Settings/Localization surfaces required for provider configuration and consent, Keychain-backed provider configuration, additive migrations/provenance fields if necessary, focused tests, implementation docs, and .agent/handoffs/stage-11.md. Do not add mailbox integration, classify production Canvas announcements, alter official/inferred-date rules, call EventKit/notifications, or begin study planning.
 
 Acceptance:
 - Tests prove the provider is off until current consent and a Keychain key exist; disabling/revoking consent stops all network calls while deterministic features continue.

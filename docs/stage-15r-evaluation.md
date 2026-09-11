@@ -35,7 +35,7 @@ This protocol defines local, aggregate-only measurements for the release candida
 ## Seven-day observed procedure
 
 1. Freeze the signed app hash, Git commit, version, signing identity, and CDHash before day one.
-2. Use only the dedicated Campus Dashboard calendar and supported read-only sources. Do not enable Outlook.
+2. Use only the dedicated Campus Dashboard calendar and supported read-only sources. Mailbox integration is outside the product.
 3. Daily, record aggregate counts shown in Settings plus whether any permission or source recovery was needed. Do not copy course content into the log.
 4. For a labeled quality audit, the user manually assigns ground truth without storing private text in the report; retain only per-class confusion counts.
 5. At day seven, report numerator/denominator, sample count, mean latency, per-class precision/recall/F1, critical miss rate, correction/fallback recovery, duplicate/unsafe-write counts, notification duplication, and handling-time summary.

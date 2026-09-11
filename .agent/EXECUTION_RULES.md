@@ -36,9 +36,8 @@ handoff evidence.
 
 ## 5. External-service call and cost discipline
 
-- Use fake transports and synthetic fixtures for normal development and automated tests. Never use live DeepSeek, Canvas, SIweb, or Microsoft Graph calls as an implementation loop.
+- Use fake transports and synthetic fixtures for normal development and automated tests. Never use live DeepSeek, Canvas, or SIweb calls as an implementation loop.
 - A stage may make only the minimum live calls required by its explicit smoke-test acceptance. Repeat a successful live smoke only when a material code/configuration change invalidates it; document why.
 - DeepSeek requests require deterministic input-length and output-token caps, bounded retries, single-flight processing, and a durable cache key based on source content hash plus provider/model/prompt/schema versions. Unchanged content must not be billed twice.
 - Expose privacy-safe aggregate input/output token and request counts plus a user-configurable per-run/daily budget. Stop and report budget exhaustion; never silently continue paid calls.
-- Outlook and other remote connectors must use pagination/delta state, bounded recent windows, minimum selected fields, and Retry-After-aware backoff rather than repeated full scans.
 - Never print live response bodies or use verbose network tracing with real accounts. Aggregate status/count/timing evidence is sufficient unless a sanitized error contract is under test.

@@ -16,12 +16,10 @@ The main project conversation owns this roadmap and accepts each stage. Stage co
 | 08 | AI parsing and confirmation queue | 05, 06, 07 | Controlled AI suggestions work; inferred dates cannot bypass confirmation |
 | 09 | Integration hardening, privacy, and diagnostics | 06, 07, 08 | End-to-end flows, permission denial, clearing, redaction, and diagnostics pass |
 | 10R | Pre-trial UI and Simplified Chinese repair | 09; Stage 10 field feedback | Weekly timetable, spatial day/week/month schedule, unread-announcement sidebar, and complete Simplified Chinese system UI pass |
-| 10 | Final real-device acceptance and seven-day trial | 10R, 15R | The frozen no-Outlook release candidate passes Mac/iPhone, source, AI, notification, and seven-day operational acceptance |
+| 10 | Final real-device acceptance and seven-day trial | 10R, 15R | The frozen release candidate passes Mac/iPhone, source, AI, notification, and seven-day operational acceptance |
 | 11 | DeepSeek provider, consent, and security gate | 09, 10R; Stage 10 paused by user | External AI is opt-in, Keychain-backed, schema-validated, minimal, auditable, and proven with a synthetic live smoke |
 | 12 | Canvas announcement academic-signal classification | 11 | Announcements yield explainable schedule-change, assignment-deadline, exam-time, or other signals without bypassing date confirmation |
-| 13 | Outlook tenant feasibility and delegated authorization (deferred) | Future main-thread authorization | Preserved pending school IT policy; not part of the active Stage 10 release path |
-| 14 | Outlook read-only mail sync and local mailbox UI (deferred) | Accepted 13 and future authorization | Preserved for a later Outlook release path |
-| 15 | Final integration, AI field repair, and release candidate | 12; Outlook deferred | Correctable local feedback improves announcement classification; confirmed schedule/exam signals reconcile safely; measurable no-Outlook integration passes and a signed build is frozen for Stage 10 |
+| 15 | Final integration, AI field repair, and release candidate | 12 | Correctable local feedback improves announcement classification; confirmed schedule/exam signals reconcile safely; measurable integration passes and a signed build is frozen for Stage 10 |
 | 15R | Release usability closure | 15 partial | All setup is available in-app; failures are recoverable; AI review and Calendar actions are explicit; the release is reproducible and instrumented for honest seven-day metrics |
 | 15S | Schedule-change targeting safety repair | 15R partial; real acceptance defect | Multi-section cancellation dates are section-aware, uniquely bound to SIweb meetings, never shown or written as standalone confirmed changes when unresolved, and always require explicit confirmation |
 | 15T | Information-noise reduction and Needs Review center | 15S implementation baseline | Announcements remains the source feed; Needs Review contains only actionable unresolved decisions; empty Canvas assignment shells are locally collapsed and reactivate idempotently when actionable |
@@ -31,9 +29,9 @@ The main project conversation owns this roadmap and accepts each stage. Stage co
 - Stages 03 and 04 may run in parallel after Stage 02 is accepted because they own separate connectors, but only when each task uses an isolated Git worktree. In the same checkout, run them sequentially to avoid shared-file races.
 - Stages 06 and 07 may run in parallel after Stage 05 is accepted, but only in isolated Git worktrees. In the same checkout, run them sequentially.
 - All other dependency edges are sequential.
-- The DeepSeek track ended with accepted Stage 12. The Outlook track (Stages 13–14) is explicitly deferred pending school IT guidance and is not on the current critical path.
+- The DeepSeek track ended with accepted Stage 12. The former mailbox track and its implementation have been removed from the product.
 - Stage 15T is accepted at `2578312`; the combined candidate passes its 250-test suite, release/signing checks, safety scans, and bilingual synthetic signed-app walkthrough. Stage 15S remains `PARTIAL`: the next gate is a real signed-app exact cancellation preview followed by separately approved confirm/undo operations in the dedicated Calendar. Only after that gate and the combined real Canvas/SIweb/UI checks may Stage 15R and Stage 15 be accepted, the candidate be frozen, and Stage 10 resume at 0/7.
-- Historical Stage 10R gate remains satisfied. Outlook work performed offline during partial Stage 13 earns no acceptance credit and must remain dormant during the trial.
+- Historical Stage 10R gate remains satisfied. Historical partial Stage 13 evidence is retained only as an immutable handoff and is outside the product.
 - Parallel stages must not edit the same central planning files. Each writes only its own handoff.
 
 ## Execution-efficiency policy

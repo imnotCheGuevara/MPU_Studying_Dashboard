@@ -71,6 +71,7 @@ final class DashboardModel: ObservableObject {
     @Published private(set) var calendarSources: [CalendarSourceDescriptor] = []
     @Published private(set) var writableCalendars: [CalendarDescriptor] = []
     @Published private(set) var calendarMessage = "Calendar sync is not configured."
+    @Published private(set) var calendarDeliverySummary = CalendarDeliverySummary.empty
     @Published private(set) var isCalendarBusy = false
     @Published var selectedCalendarSourceID: String?
     @Published var selectedDedicatedCalendarID: String?
@@ -100,11 +101,6 @@ final class DashboardModel: ObservableObject {
         requestCount: 0, inputTokens: 0, outputTokens: 0, estimatedCostMicrousd: 0
     )
     @Published private(set) var aiMessage = "AI assistance is off. Deterministic organization remains available."
-    @Published private(set) var outlookStatus: OutlookAuthorizationStatus = .disconnected
-    @Published private(set) var outlookMessage = "School Outlook is not configured."
-    @Published private(set) var outlookClientID = ""
-    @Published private(set) var outlookTenantID = ""
-    @Published private(set) var isOutlookBusy = false
     @Published private(set) var sourceHealth: [DiagnosticSourceHealth] = []
     @Published private(set) var diagnosticPreview = "Diagnostics have not been refreshed."
     @Published private(set) var privacyMessage = "Local data, credentials, and Calendar cleanup are separate operations."
@@ -130,8 +126,6 @@ final class DashboardModel: ObservableObject {
     private let aiCoordinator: AIParsingCoordinator?
     private let academicSignalCoordinator: AcademicSignalCoordinator?
     private let courseReconciliation: CourseReconciliationService?
-    private let outlookAuthorization: OutlookAuthorizationService?
-    private let outlookIsPreviewOverride: Bool
     private let privacyDiagnostics: PrivacyDiagnosticsService?
     private let releaseReadiness: ReleaseReadinessService?
     private let showsSyntheticAIResultsForQA: Bool
@@ -152,8 +146,6 @@ final class DashboardModel: ObservableObject {
         aiCoordinator: AIParsingCoordinator? = nil,
         academicSignalCoordinator: AcademicSignalCoordinator? = nil,
         courseReconciliation: CourseReconciliationService? = nil,
-        outlookAuthorization: OutlookAuthorizationService? = nil,
-        outlookPreviewStatus: OutlookAuthorizationStatus? = nil,
         privacyDiagnostics: PrivacyDiagnosticsService? = nil,
         releaseReadiness: ReleaseReadinessService? = nil,
         showsSyntheticAIResultsForQA: Bool = false,
@@ -171,8 +163,6 @@ final class DashboardModel: ObservableObject {
         self.aiCoordinator = aiCoordinator
         self.academicSignalCoordinator = academicSignalCoordinator
         self.courseReconciliation = courseReconciliation
-        self.outlookAuthorization = outlookAuthorization
-        outlookIsPreviewOverride = outlookPreviewStatus != nil
         self.privacyDiagnostics = privacyDiagnostics
         self.releaseReadiness = releaseReadiness
         self.showsSyntheticAIResultsForQA = showsSyntheticAIResultsForQA
@@ -180,12 +170,6 @@ final class DashboardModel: ObservableObject {
         presentationTimeZone = timeZone
         if let scenario, snapshot == nil { applyScenario(scenario) }
         else { restoreLocalState() }
-        if let outlookPreviewStatus {
-            outlookStatus = outlookPreviewStatus
-            outlookClientID = "11111111-1111-4111-8111-111111111111"
-            outlookTenantID = "22222222-2222-4222-8222-222222222222"
-            updateOutlookMessage()
-        }
     }
 
     func startRuntimeServices() async {
@@ -204,6 +188,7 @@ final class DashboardModel: ObservableObject {
             await backgroundScheduler.setCompletionHandler { [weak self] in
                 await self?.reloadDashboardData()
                 await self?.refreshDiagnostics()
+                try? await self?.refreshCalendarConfiguration()
             }
             let monitor = RuntimeRecoveryMonitor(scheduler: backgroundScheduler)
             monitor.start()
@@ -297,75 +282,6 @@ final class DashboardModel: ObservableObject {
             ReleaseReadinessService.openSystemSettings(for: .notificationPermission)
         default:
             selectedSection = .settings
-        }
-    }
-
-    func refreshOutlookAuthorization() async {
-        if outlookIsPreviewOverride { return }
-        guard let outlookAuthorization else {
-            outlookStatus = .disconnected
-            outlookMessage = "School Outlook authorization is unavailable. Canvas and SIweb remain available."
-            return
-        }
-        await outlookAuthorization.restoreStatus(); outlookStatus = await outlookAuthorization.status
-        if let configuration = await outlookAuthorization.currentConfiguration() {
-            outlookClientID = configuration.clientID; outlookTenantID = configuration.tenantID
-        }
-        updateOutlookMessage()
-    }
-    func configureAndConnectOutlook(clientID: String, tenantID: String) async {
-        guard let outlookAuthorization else { return }; isOutlookBusy = true; defer { isOutlookBusy = false }
-        do {
-            try await outlookAuthorization.configure(clientID: clientID, tenantID: tenantID)
-            outlookClientID = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
-            outlookTenantID = tenantID.trimmingCharacters(in: .whitespacesAndNewlines)
-            let url = try await outlookAuthorization.beginAuthorization(); outlookStatus = await outlookAuthorization.status
-            updateOutlookMessage()
-            guard NSWorkspace.shared.open(url) else {
-                await outlookAuthorization.cancelAuthorization(); throw OutlookAuthorizationError.authorizationCancelled
-            }
-        } catch {
-            outlookStatus = await outlookAuthorization.status
-            outlookMessage = "Outlook configuration or authorization could not start. Check the registered client and tenant values."
-        }
-    }
-    func handleOutlookCallback(_ url: URL) async {
-        guard let outlookAuthorization else { return }; isOutlookBusy = true; defer { isOutlookBusy = false }
-        try? await outlookAuthorization.handleCallback(url); outlookStatus = await outlookAuthorization.status
-        updateOutlookMessage()
-    }
-    func disconnectOutlook() async {
-        guard let outlookAuthorization else { return }; isOutlookBusy = true; defer { isOutlookBusy = false }
-        do {
-            _ = try await outlookAuthorization.disconnect(); outlookStatus = await outlookAuthorization.status
-            outlookMessage = "School Outlook tokens were removed from Keychain. No mailbox content was changed."
-        } catch { outlookMessage = "School Outlook could not be disconnected because Keychain was unavailable." }
-    }
-    func runOutlookMetadataCheck() async {
-        guard let outlookAuthorization else { return }; isOutlookBusy = true; defer { isOutlookBusy = false }
-        do {
-            let token = try await outlookAuthorization.validAccessToken()
-            let result = try await OutlookGraphMetadataProbe().run(accessToken: token)
-            outlookStatus = await outlookAuthorization.status
-            outlookMessage = result.messageCount == 0
-                ? "Connected. The minimum metadata-only check succeeded with no recent item returned."
-                : "Connected. The minimum metadata-only check succeeded."
-        } catch let error as OutlookGraphError {
-            await outlookAuthorization.markRevokedOrClaimsChallenge(claims: error.claims)
-            outlookStatus = await outlookAuthorization.status
-            outlookMessage = error.category == .claimsChallenge
-                ? "Microsoft requires another interactive sign-in for MFA or Conditional Access."
-                : "The metadata-only check failed safely. Canvas and SIweb remain available."
-        } catch { outlookStatus = await outlookAuthorization.status; updateOutlookMessage() }
-    }
-    private func updateOutlookMessage() {
-        outlookMessage = switch outlookStatus {
-        case .disconnected: outlookClientID.isEmpty ? "School Outlook is not configured." : "School Outlook is disconnected."
-        case .authorizing: "Continue authorization in the system browser."
-        case .connected: "Connected with delegated Mail.ReadBasic. Mail content is not synchronized in this stage."
-        case .expired: "School Outlook authorization expired or was revoked. Reconnect interactively."
-        case .adminApprovalRequired: "The school tenant requires administrator approval. Outlook remains off."
-        case .policyBlocked: "The school tenant policy blocked this app. Outlook remains off."
         }
     }
 
@@ -845,6 +761,7 @@ final class DashboardModel: ObservableObject {
         guard calendarAccessStatus == .fullAccess else {
             calendarSources = []
             writableCalendars = []
+            calendarDeliverySummary = .empty
             dedicatedCalendarValidationState = nil
             if try await calendarService.configuredIdentity() == nil {
                 calendarMessage = "Full Calendar access is required to configure app-owned events."
@@ -855,6 +772,7 @@ final class DashboardModel: ObservableObject {
         }
         calendarSources = try await calendarService.availableSources()
         writableCalendars = try await calendarService.availableWritableCalendars()
+        calendarDeliverySummary = try await calendarService.deliverySummary()
         selectedCalendarSourceID = selectedCalendarSourceID ?? calendarSources.first?.identifier
         if let identity = try await calendarService.configuredIdentity() {
             selectedDedicatedCalendarID = identity.calendarIdentifier
@@ -966,7 +884,7 @@ final class DashboardModel: ObservableObject {
         defer { isPrivacyBusy = false }
         do {
             try await Task.detached { try privacyDiagnostics.clearCredentials() }.value
-            privacyMessage = "Canvas, SIweb, and School Outlook credentials were cleared from Keychain. Cached local data and Apple Calendar events were retained."
+            privacyMessage = "Canvas and SIweb credentials were cleared from Keychain. Cached local data and Apple Calendar events were retained."
         } catch {
             privacyMessage = PrivacyDiagnosticsError.credentialClearFailed.description
         }
@@ -1067,6 +985,7 @@ final class DashboardModel: ObservableObject {
         await reloadDashboardData()
         refreshAIConfiguration()
         await refreshDiagnostics()
+        try? await refreshCalendarConfiguration()
         await refreshBackgroundConfiguration()
         refreshCount += 1
     }
@@ -1266,6 +1185,9 @@ final class DashboardModel: ObservableObject {
         state: ManagedCalendarValidationState
     ) -> String {
         guard state == .valid else { return "The dedicated calendar needs attention. Revalidate it in Settings." }
+        if calendarDeliverySummary.pendingCount > 0 {
+            return "Calendar changes are waiting to retry. Existing iCloud events remain untouched."
+        }
         return identity.isICloud
             ? "Dedicated calendar verified in iCloud; iPhone arrival timing is controlled by iCloud."
             : "Dedicated calendar verified; this source is not iCloud and is available only on this Mac/account source."

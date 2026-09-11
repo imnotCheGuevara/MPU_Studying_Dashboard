@@ -1,10 +1,6 @@
 import Foundation
 
 enum AppEnvironment {
-    /// Stage 15R release boundary: Outlook is intentionally absent from the
-    /// production dependency graph and therefore cannot authorize or send traffic.
-    static let outlookEnabledInRelease = false
-
     struct Dependencies {
         let localStateRepository: any LocalStateRepository
         let dashboardDataReader: (any DashboardDataReading)?
@@ -14,7 +10,6 @@ enum AppEnvironment {
         let aiCoordinator: AIParsingCoordinator?
         let academicSignalCoordinator: AcademicSignalCoordinator?
         let courseReconciliation: CourseReconciliationService?
-        let outlookAuthorization: OutlookAuthorizationService?
         let privacyDiagnostics: PrivacyDiagnosticsService?
         let releaseReadiness: ReleaseReadinessService?
     }
@@ -77,7 +72,6 @@ enum AppEnvironment {
                 backgroundScheduler: scheduler, aiCoordinator: ai,
                 academicSignalCoordinator: academicSignals,
                 courseReconciliation: courseReconciliation,
-                outlookAuthorization: nil,
                 privacyDiagnostics: privacyDiagnostics,
                 releaseReadiness: releaseReadiness
             )
@@ -90,7 +84,7 @@ enum AppEnvironment {
                 calendarService: nil, notificationService: nil, backgroundScheduler: nil,
                 aiCoordinator: nil, academicSignalCoordinator: nil,
                 courseReconciliation: nil,
-                outlookAuthorization: nil, privacyDiagnostics: nil, releaseReadiness: nil
+                privacyDiagnostics: nil, releaseReadiness: nil
             )
         }
     }

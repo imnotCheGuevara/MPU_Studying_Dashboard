@@ -115,13 +115,6 @@ struct CampusDashboardApp: App {
             semaphore.wait()
             exit(result)
         }
-        if let flag = arguments.firstIndex(of: "--stage13-ui-qa"), arguments.indices.contains(flag + 1),
-           let status = OutlookAuthorizationStatus(rawValue: arguments[flag + 1]) {
-            _model = StateObject(wrappedValue: DashboardModel(
-                scenario: .populated, snapshot: Stage10RQAData.snapshot, outlookPreviewStatus: status,
-                now: { Stage10RQAData.now }, timeZone: TimeZone(identifier: "Asia/Macau")!
-            )); return
-        }
         if arguments.contains("--stage10r-db-ui-qa"), let qaModel = try? Stage10RQAData.databaseModel() {
             _model = StateObject(wrappedValue: qaModel)
             return
@@ -147,7 +140,6 @@ struct CampusDashboardApp: App {
             aiCoordinator: dependencies.aiCoordinator,
             academicSignalCoordinator: dependencies.academicSignalCoordinator,
             courseReconciliation: dependencies.courseReconciliation,
-            outlookAuthorization: dependencies.outlookAuthorization,
             privacyDiagnostics: dependencies.privacyDiagnostics,
             releaseReadiness: dependencies.releaseReadiness
         ))
