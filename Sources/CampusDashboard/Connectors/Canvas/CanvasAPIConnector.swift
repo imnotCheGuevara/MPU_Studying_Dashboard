@@ -1,5 +1,9 @@
 import Foundation
 
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+
 enum CanvasErrorCategory: String, Sendable {
     case unauthorized
     case forbidden

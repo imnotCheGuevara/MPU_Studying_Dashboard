@@ -1,5 +1,4 @@
 #if os(Windows)
-import DefaultBackend
 import Foundation
 import SwiftCrossUI
 
@@ -25,18 +24,19 @@ private enum WindowsSection: String, CaseIterable, Identifiable {
     }
 }
 
-private struct WindowsRootView: View {
+public struct CampusDashboardWindowsRootView: View {
     @State private var selectedSection: WindowsSection? = .today
+    @State private var state = WindowsDashboardState()
 
-    private let snapshot = SyntheticFixtures.populated
+    public init() {}
 
-    var body: some View {
+    public var body: some View {
         NavigationSplitView {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Campus Dashboard")
                     .font(.title2)
                     .emphasized()
-                Text("Windows preview · synthetic data")
+                Text(state.isShowingPreview ? "Windows · preview data" : "Windows · Canvas connected")
                     .font(.caption)
                 Divider()
                 List(WindowsSection.allCases, selection: $selectedSection) { section in
@@ -50,17 +50,17 @@ private struct WindowsRootView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     switch selectedSection ?? .today {
                     case .today:
-                        TodayPreview(snapshot: snapshot)
+                        TodayPreview(snapshot: state.snapshot)
                     case .schedule:
-                        SchedulePreview(snapshot: snapshot)
+                        SchedulePreview(snapshot: state.snapshot)
                     case .tasks:
-                        TasksPreview(snapshot: snapshot)
+                        TasksPreview(snapshot: state.snapshot)
                     case .announcements:
-                        AnnouncementsPreview(snapshot: snapshot)
+                        AnnouncementsPreview(snapshot: state.snapshot)
                     case .needsReview:
-                        NeedsReviewPreview(snapshot: snapshot)
+                        NeedsReviewPreview(snapshot: state.snapshot)
                     case .settings:
-                        SettingsPreview(snapshot: snapshot)
+                        SettingsView(state: state)
                     }
                 }
                 .padding(24)
@@ -77,17 +77,17 @@ private struct TodayPreview: View {
             ScreenTitle("今日 · Today", subtitle: "One focused view of classes and work")
 
             HStack(spacing: 16) {
-                SummaryCard(value: "\(snapshot.meetings.filter { !$0.isCancelled }.count)", label: "Classes")
+                SummaryCard(value: "\(snapshot.courses.count)", label: "Courses")
                 SummaryCard(value: "\(snapshot.tasks.filter(\.appearsInNormalTaskList).count)", label: "Tasks")
                 SummaryCard(value: "\(snapshot.announcements.filter { !$0.isLocallyRead }.count)", label: "Unread")
             }
 
-            Text("Next classes")
+            Text("Courses")
                 .font(.headline)
-            ForEach(Array(snapshot.meetings.filter { !$0.isCancelled }.prefix(2)), id: \.id) { meeting in
+            ForEach(Array(snapshot.courses.prefix(3)), id: \.id) { course in
                 ContentRow(
-                    title: meeting.title,
-                    detail: "\(Self.time(meeting.start))–\(Self.time(meeting.end)) · \(meeting.location)"
+                    title: course.name,
+                    detail: [course.code, course.term].filter { !$0.isEmpty }.joined(separator: " · ")
                 )
             }
 
@@ -100,12 +100,6 @@ private struct TodayPreview: View {
                 )
             }
         }
-    }
-
-    private static func time(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
     }
 
     private static func dateTime(_ date: Date?) -> String {
@@ -123,11 +117,18 @@ private struct SchedulePreview: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             ScreenTitle("日程 · Schedule", subtitle: "Local in-app schedule")
-            ForEach(snapshot.meetings, id: \.id) { meeting in
+            if snapshot.meetings.isEmpty {
                 ContentRow(
-                    title: meeting.isCancelled ? "Cancelled · \(meeting.title)" : meeting.title,
-                    detail: meeting.location
+                    title: "No timetable data on Windows yet",
+                    detail: "SIweb sign-in is intentionally disabled until a safe Windows adapter is available."
                 )
+            } else {
+                ForEach(snapshot.meetings, id: \.id) { meeting in
+                    ContentRow(
+                        title: meeting.isCancelled ? "Cancelled · \(meeting.title)" : meeting.title,
+                        detail: meeting.location
+                    )
+                }
             }
         }
     }
@@ -172,15 +173,50 @@ private struct NeedsReviewPreview: View {
     }
 }
 
-private struct SettingsPreview: View {
-    let snapshot: DashboardSnapshot
+private struct SettingsView: View {
+    let state: WindowsDashboardState
+
+    private var baseURLBinding: Binding<String> {
+        Binding { state.canvasBaseURL } set: { state.canvasBaseURL = $0 }
+    }
+
+    private var tokenBinding: Binding<String> {
+        Binding { state.canvasToken } set: { state.canvasToken = $0 }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            ScreenTitle("设置 · Settings", subtitle: "Windows platform slice")
-            ContentRow(title: "Canvas + SIweb", detail: "Read-only source boundary")
-            ContentRow(title: "App schedule", detail: "Kept locally inside Campus Dashboard")
-            ForEach(snapshot.sourceHealth, id: \.id) { source in
+            ScreenTitle("设置 · Settings", subtitle: "Connect Canvas with read-only access")
+            Text("Canvas HTTPS URL")
+                .font(.headline)
+            TextField("https://canvas.example.edu", text: baseURLBinding)
+                .frame(maxWidth: 560)
+            Text("Canvas access token")
+                .font(.headline)
+            SecureField(
+                state.hasSavedCanvasToken ? "Saved securely — leave blank to reuse" : "Paste token once",
+                text: tokenBinding
+            )
+            .frame(maxWidth: 560)
+
+            HStack(spacing: 12) {
+                Button(state.isSyncing ? "Syncing…" : "Save and sync") {
+                    Task { await state.synchronizeCanvas() }
+                }
+                .disabled(state.isSyncing)
+                Button("Forget Canvas") {
+                    state.forgetCanvas()
+                }
+                .disabled(state.isSyncing || !state.hasSavedCanvasToken)
+            }
+
+            Text(state.statusMessage)
+                .font(.subheadline)
+            ContentRow(
+                title: "Windows privacy boundary",
+                detail: "Token: Windows Credential Manager · Data: read-only Canvas · No iCloud, Apple Calendar, Outlook, or external calendar writes"
+            )
+            ForEach(state.snapshot.sourceHealth, id: \.id) { source in
                 ContentRow(title: source.source.rawValue, detail: source.detail)
             }
         }
@@ -240,13 +276,4 @@ private struct ContentRow: View {
     }
 }
 
-@main
-struct CampusDashboardWindowsApp: App {
-    var body: some Scene {
-        WindowGroup("Campus Dashboard") {
-            WindowsRootView()
-        }
-        .defaultSize(width: 1100, height: 720)
-    }
-}
 #endif

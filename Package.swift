@@ -12,8 +12,8 @@ let package = Package(
         .package(url: "https://github.com/moreSwift/swift-cross-ui", exact: "0.9.0")
     ],
     targets: [
-        .executableTarget(
-            name: "CampusDashboardWindows",
+        .target(
+            name: "CampusDashboardWindowsCore",
             dependencies: [
                 .product(name: "SwiftCrossUI", package: "swift-cross-ui"),
                 .product(name: "DefaultBackend", package: "swift-cross-ui")
@@ -22,12 +22,34 @@ let package = Package(
             sources: [
                 "Domain/Models.swift",
                 "Fixtures/SyntheticFixtures.swift",
+                "Services/ServiceContracts.swift",
+                "Security/SecretStore.swift",
+                "Connectors/Canvas/CanvasConfiguration.swift",
+                "Connectors/Canvas/CanvasDTOs.swift",
+                "Connectors/Canvas/CanvasConcurrencyGate.swift",
+                "Connectors/Canvas/CanvasAPIConnector.swift",
+                "Connectors/Canvas/CanvasSnapshotLoader.swift",
+                "Windows/WindowsCredentialSecretStore.swift",
+                "Windows/WindowsCanvasSnapshotMapper.swift",
+                "Windows/WindowsDashboardState.swift",
                 "Windows/CampusDashboardWindowsApp.swift"
+            ],
+            linkerSettings: [
+                .linkedLibrary("advapi32")
             ]
+        ),
+        .executableTarget(
+            name: "CampusDashboardWindows",
+            dependencies: [
+                "CampusDashboardWindowsCore",
+                .product(name: "SwiftCrossUI", package: "swift-cross-ui"),
+                .product(name: "DefaultBackend", package: "swift-cross-ui")
+            ],
+            path: "Sources/CampusDashboardWindowsApp"
         ),
         .testTarget(
             name: "CampusDashboardWindowsTests",
-            dependencies: ["CampusDashboardWindows"],
+            dependencies: ["CampusDashboardWindowsCore"],
             path: "Tests/CampusDashboardWindowsTests"
         )
     ]

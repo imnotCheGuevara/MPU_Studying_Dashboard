@@ -1,12 +1,15 @@
 import Foundation
+
+#if canImport(Security)
 import Security
+#endif
 
 enum SecretStoreError: Error, Equatable, CustomStringConvertible {
     case denied
     case unavailable
     case notFound
     case invalidData
-    case operatingSystemStatus(OSStatus)
+    case operatingSystemStatus(Int32)
 
     var description: String {
         switch self {
@@ -14,7 +17,7 @@ enum SecretStoreError: Error, Equatable, CustomStringConvertible {
         case .unavailable: "Keychain is unavailable for this application identity"
         case .notFound: "Secret was not found"
         case .invalidData: "Keychain returned invalid secret data"
-        case .operatingSystemStatus(let status): "Keychain operation failed (status \(status))"
+        case .operatingSystemStatus(let status): "Credential storage failed (status \(status))"
         }
     }
 }
@@ -25,6 +28,7 @@ protocol SecretStore: Sendable {
     func remove(account: String) throws
 }
 
+#if canImport(Security)
 struct KeychainClient: @unchecked Sendable {
     var add: ([String: Any]) -> OSStatus
     var update: ([String: Any], [String: Any]) -> OSStatus
@@ -102,6 +106,7 @@ final class KeychainSecretStore: SecretStore, @unchecked Sendable {
         }
     }
 }
+#endif
 
 final class FakeSecretStore: SecretStore, @unchecked Sendable {
     enum Mode: Sendable {

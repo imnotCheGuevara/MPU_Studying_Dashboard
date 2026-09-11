@@ -58,4 +58,8 @@ final class UserDefaultsCanvasConfigurationStore: CanvasConfigurationStore, @unc
         let configuration = try CanvasConfiguration(baseURL: baseURL)
         defaults.set(configuration.baseURL.absoluteString, forKey: Self.baseURLKey)
     }
+
+    func removeBaseURL() {
+        defaults.removeObject(forKey: Self.baseURLKey)
+    }
 }

@@ -27,6 +27,14 @@ jobs:
           branch: swift-6.1-release
           tag: 6.1-RELEASE
 
+      - name: Cache Swift build products
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: windows-swift-6.1-v1-${{ hashFiles('Package.swift', 'Bundler.toml') }}
+          restore-keys: |
+            windows-swift-6.1-v1-
+
       - name: Show Swift version
         run: swift --version
 
@@ -39,15 +47,34 @@ jobs:
       - name: Run Windows tests
         run: swift test -c release
 
-      - name: Stage CI executable
+      - name: Build portable bundle and MSI
         run: |
-          $binPath = swift build -c release --show-bin-path
-          New-Item -ItemType Directory -Force artifacts/CampusDashboardWindows | Out-Null
-          Copy-Item "$binPath/CampusDashboardWindows.exe" artifacts/CampusDashboardWindows/
+          $bundlerSource = Join-Path $env:RUNNER_TEMP "swift-bundler"
+          git clone --filter=blob:none https://github.com/moreSwift/swift-bundler.git $bundlerSource
+          git -C $bundlerSource checkout 182fbd7f50a3c2ac1efd69659aac4f55605ca718
+          $env:SBUN_NO_SCHEMA_GEN = "1"
+          $bundlerScratch = Join-Path (Resolve-Path ".build") "swift-bundler-tool"
+          swift build -c release --package-path $bundlerSource --scratch-path $bundlerScratch --product swift-bundler
+          $bundlerBin = swift build -c release --package-path $bundlerSource --scratch-path $bundlerScratch --show-bin-path
+          & (Join-Path $bundlerBin "swift-bundler.exe") bundle CampusDashboard --bundler windowsMSI -c release
 
-      - name: Upload CI executable
+          $bundleRoot = ".build/bundler/apps/CampusDashboard"
+          $portableSource = Join-Path $bundleRoot "CampusDashboard.generic"
+          $msiSource = Join-Path $bundleRoot "CampusDashboard.msi"
+          New-Item -ItemType Directory -Force artifacts | Out-Null
+          Compress-Archive -Path "$portableSource/*" -DestinationPath "artifacts/CampusDashboard-Windows-0.1.0-portable-x64.zip"
+          Copy-Item $msiSource "artifacts/CampusDashboard-Windows-0.1.0-x64.msi"
+
+          Get-ChildItem artifacts -File | Sort-Object Name | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($_.Name)"
+          } | Set-Content -Encoding ascii artifacts/SHA256SUMS.txt
+
+          Get-Content artifacts/SHA256SUMS.txt
+
+      - name: Upload Windows packages
         uses: actions/upload-artifact@v4
         with:
-          name: CampusDashboardWindows-ci
-          path: artifacts/CampusDashboardWindows
+          name: CampusDashboard-Windows-0.1.0
+          path: artifacts
           if-no-files-found: error

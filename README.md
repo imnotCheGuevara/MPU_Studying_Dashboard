@@ -1,6 +1,6 @@
 # Campus Dashboard
 
-Campus Dashboard is a local-only macOS learning dashboard. It includes read-only Canvas and MPU SIweb connectors, deterministic synchronization, a dedicated-calendar EventKit boundary, local notifications, user-controlled background scheduling, and a controlled AI confirmation queue. External AI is not configured or contacted.
+Campus Dashboard is a local-only learning dashboard for macOS, with an active Windows port. The macOS application includes read-only Canvas and MPU SIweb connectors, deterministic synchronization, a dedicated-calendar EventKit boundary, local notifications, user-controlled background scheduling, and a controlled AI confirmation queue. The Windows application reuses the same domain model but intentionally has no iCloud, EventKit, Outlook, or other external-calendar integration. External AI is not configured or contacted by default.
 
 ## Requirements
 
@@ -27,6 +27,19 @@ open "dist/Campus Dashboard.app"
 The packaging script creates `dist/Campus Dashboard.app`, installs the checked-in `Info.plist`, and applies an ad-hoc signature with the checked-in sandbox entitlement baseline. The verification script checks identity/signature, launches the bundle through Launch Services, and uses the packaged application identity to perform a generated-value Keychain create/read/delete smoke test. Its result contains no secret.
 
 The ad-hoc signature is a reproducible local-development baseline, not a release identity. When the project adopts full Xcode, select a stable Apple Development/Developer ID team, preserve the Bundle ID, enable App Sandbox, and provision only reviewed capabilities. EventKit usage descriptions, notification/background configuration, hardened runtime, and notarization belong to their later implementation stages.
+
+## Windows build
+
+The Windows target uses Swift 6.1 and SwiftCrossUI's native WinUI backend. It provides the six learner surfaces—Today, Schedule, Tasks, Announcements, Needs Review, and Settings—from the shared domain model. Settings accepts an authorized Canvas HTTPS URL and access token, stores the token only in Windows Credential Manager, and performs the same read-only Canvas API synchronization used by the macOS codebase. Until Canvas is configured, the UI clearly labels its deterministic preview data.
+
+SIweb authorization, durable normalized data storage, reminders, background refresh, and full bilingual localization are still being ported, so this remains a test build rather than a completed daily-use release. The SIweb timetable is unavailable in this slice; Schedule stays inside the app and shows a clear empty state.
+
+Every successful Windows workflow produces two unsigned x64 packages:
+
+- `CampusDashboard-Windows-0.1.0-portable-x64.zip`: extract the complete directory, then run `CampusDashboardWindows.exe` without moving the executable away from its bundled DLLs.
+- `CampusDashboard-Windows-0.1.0-x64.msi`: install or uninstall through Windows Settings like a normal desktop application.
+
+Use `SHA256SUMS.txt` to verify either download. Windows may show an unknown-publisher warning because this test build does not yet have a paid code-signing certificate. The Windows product stores no iCloud settings and contains no EventKit, Outlook, Microsoft Graph, Google Calendar, CalDAV, or other external-calendar adapter. A clean Windows build requires the Swift toolchain only in CI or for development; the packaged artifacts include the app's required dynamic libraries.
 
 ## Explore the Stage 01 UI
 
