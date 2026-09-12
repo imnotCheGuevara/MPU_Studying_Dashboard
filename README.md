@@ -36,7 +36,7 @@ SIweb authorization, durable normalized data storage, reminders, background refr
 
 Every successful Windows workflow produces one unsigned x64 test package:
 
-- `CampusDashboard-Windows-0.1.0-portable-x64.zip`: extract the complete directory, then run `CampusDashboardWindows.exe` without moving the executable away from its bundled DLLs.
+- `CampusDashboard-Windows-0.1.0-portable-x64.zip`: extract the complete directory, then run `CampusDashboard.exe` without moving the executable away from its bundled DLLs.
 
 Use `SHA256SUMS.txt` to verify the download. Windows may show an unknown-publisher warning because this test build does not yet have a paid code-signing certificate. The portable ZIP is the approved controlled-test format; a signed MSI or MSIX is deferred until the Windows beta is stable. The Windows product stores no iCloud settings and contains no EventKit, Outlook, Microsoft Graph, Google Calendar, CalDAV, or other external-calendar adapter. A clean Windows build requires the Swift toolchain only in CI or for development; the packaged artifact includes the app's required dynamic libraries.
 

@@ -77,9 +77,8 @@ jobs:
           $env:PATH = "$($manifestTool.DirectoryName);$env:PATH"
           Get-Command mt.exe -ErrorAction Stop | Out-Null
 
-          $productsDirectory = (swift build -c release --show-bin-path).Trim()
           $bundlerExecutable = Join-Path $bundlerBin "swift-bundler.exe"
-          & $bundlerExecutable bundle CampusDashboard --bundler windowsGeneric --toolchain $swiftToolchain -c release --skip-build --products-directory $productsDirectory
+          & $bundlerExecutable bundle CampusDashboard --bundler windowsGeneric --toolchain $swiftToolchain -c release
           if ($LASTEXITCODE -ne 0) {
             throw "swift-bundler failed with exit code $LASTEXITCODE"
           }
