@@ -1,5 +1,15 @@
 # Campus Dashboard
 
+## 中文介绍
+
+Campus Dashboard 是一款面向澳门理工大学（Macao Polytechnic University，MPU）学生的本地化 macOS 学习信息仪表板。**本项目基于澳门理工大学现行使用的 Canvas 教学平台与 SIweb 教务及课表信息系统开发**，希望把分散在不同系统中的课程、作业、公告和课表信息整理到一个清晰、统一的桌面应用中。
+
+macOS 版以只读方式连接用户授权的 Canvas 与 MPU SIweb，学校信息系统中的原始数据始终是权威来源，应用不会向 Canvas 或 SIweb 提交或修改任何资料。它提供今日概览、课表、任务、公告、待确认事项、专用 Apple 日历同步、本地提醒，以及须经用户确认后才能生效的 AI 辅助信息整理。
+
+隐私方面，账户凭据与会话信息仅保存在 macOS 钥匙串中，学习数据主要保存在本机；外部 AI 默认不会启用或接收数据。本项目为独立开发的学生工具，并非澳门理工大学官方产品，也不代表学校认可或背书。
+
+## English overview
+
 Campus Dashboard is a local-only macOS learning dashboard. It includes read-only Canvas and MPU SIweb connectors, deterministic synchronization, a dedicated-calendar EventKit boundary, local notifications, user-controlled background scheduling, and a controlled AI confirmation queue. External AI is not configured or contacted.
 
 ## Requirements
