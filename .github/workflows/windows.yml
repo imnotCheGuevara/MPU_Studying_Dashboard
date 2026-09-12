@@ -66,8 +66,20 @@ jobs:
           $swiftBin = Split-Path $swiftExecutable -Parent
           $swiftUSR = Split-Path $swiftBin -Parent
           $swiftToolchain = Split-Path $swiftUSR -Parent
+          $windowsKitsBin = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bin"
+          $manifestTool = Get-ChildItem $windowsKitsBin -Filter mt.exe -Recurse -File |
+            Where-Object { $_.Directory.Name -eq "x64" } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          if (-not $manifestTool) {
+            throw "Windows SDK Manifest Tool (mt.exe) was not found under $windowsKitsBin"
+          }
+          $env:PATH = "$($manifestTool.DirectoryName);$env:PATH"
+          Get-Command mt.exe -ErrorAction Stop | Out-Null
+
+          $productsDirectory = (swift build -c release --show-bin-path).Trim()
           $bundlerExecutable = Join-Path $bundlerBin "swift-bundler.exe"
-          & $bundlerExecutable bundle CampusDashboard --bundler windowsGeneric --toolchain $swiftToolchain -c release
+          & $bundlerExecutable bundle CampusDashboard --bundler windowsGeneric --toolchain $swiftToolchain -c release --skip-build --products-directory $productsDirectory
           if ($LASTEXITCODE -ne 0) {
             throw "swift-bundler failed with exit code $LASTEXITCODE"
           }
