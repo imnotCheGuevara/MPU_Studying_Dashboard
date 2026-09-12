@@ -2,11 +2,15 @@
 
 Status: `PARTIAL`
 
-Updated: 2026-09-11 Asia/Macau
+Updated: 2026-09-12 Asia/Macau
+
+## Main-conversation approval — 2026-09-12
+
+The user explicitly approved the recommended Windows adaptation defaults. Stage 16W resumed with Windows 11 x64, portable ZIP first, in-app reminders for the beta, no automatic macOS data or credential migration, and no iCloud or substitute external-calendar integration. Pre-approval implementation evidence must be revalidated after this approval.
 
 ## Main-conversation pause — 2026-09-12
 
-The user requires a Windows adaptation explanation for review before any Windows implementation continues. Stage 16W is therefore paused. Draft commits `101e014` and `40f30f0` are preserved unchanged as unreviewed work; they are not accepted Windows evidence. The review-gate commit changes documentation only. Resume only after explicit approval of `docs/windows-adaptation-review.md`.
+The user required a Windows adaptation explanation before implementation continued. Stage 16W was paused and commits `101e014` and `40f30f0` were preserved as unreviewed work. This gate was satisfied by the explicit approval recorded above.
 
 ## Current slice
 
@@ -18,8 +22,9 @@ Windows navigation currently proves the intended six in-app surfaces with synthe
 
 - UI dependency: `moreSwift/swift-cross-ui` pinned to `0.9.0`; its `DefaultBackend` selects native WinUI on Windows.
 - Reused unchanged in this slice: canonical domain models, placeholder visibility semantics, and deterministic populated fixture.
-- New platform code: one Windows UI entry file, one Windows-only test file, and one Windows CI workflow.
-- Deferred until the Windows build probe passes: larger source/service selection, SQLite compatibility, Windows credential storage, authorized browser login, reminders/background behavior, localization resources, and distributable packaging.
+- New platform code: a thin launcher, one Windows UI/state/mapper boundary, Windows Credential Manager storage, focused Windows tests, and one Windows CI workflow.
+- Reused Canvas code: configuration, DTOs, concurrency gate, API connector, and snapshot loader remain read-only and feed the shared domain model.
+- Still deferred: SIweb authorization, SQLite persistence, DeepSeek, reminders/background behavior, full localization/accessibility, and a signed installer.
 
 ## Verification completed
 
@@ -37,14 +42,13 @@ git diff --check
 PASS.
 ```
 
-No live Canvas, SIweb, DeepSeek, Calendar, notification, or credential operation was performed.
+Pre-approval Windows CI proved the release executable and native Windows tests, including Credential Manager create/read/delete. Packaging remained blocked only because the bundler subprocess did not receive the Swift executable path; the post-approval fix supplies the resolved toolchain explicitly and packages only the approved portable ZIP. No live Canvas, SIweb, DeepSeek, Calendar, or notification operation was performed.
 
 ## Remaining acceptance work
 
-1. Push this slice and obtain a clean `windows-latest` build/test result.
-2. Correct any Windows compiler/backend incompatibility before extending the port.
-3. Reuse the compatible persistence, connector, AI, and presentation files behind explicit platform boundaries.
-4. Implement Windows native credential protection and reminder/background adapters with focused safety tests.
-5. Produce a complete Windows package, document its hash, and pass the user's real Windows-machine launch/source/restart smoke.
+1. Pass the post-approval Windows 2022 build, tests, and portable bundle job; record its run and artifact hash.
+2. Publish the portable ZIP as a GitHub prerelease for the controlled real-machine smoke.
+3. Pass the user's real Windows-machine launch, Canvas source, restart, credential, navigation, scaling, keyboard, and privacy smoke.
+4. Reuse compatible persistence, SIweb, AI, reminders, localization, and presentation code behind explicit platform boundaries before daily-use acceptance.
 
 Stage 16W cannot be marked `PASS` until the Windows CI artifact and real Windows acceptance matrix pass.

@@ -1,6 +1,6 @@
 # Stage 16W — Windows application port
 
-Status: `PAUSED — AWAITING USER REVIEW`
+Status: `ACTIVE — USER APPROVED 2026-09-12`
 
 ## Goal
 
@@ -8,7 +8,7 @@ Deliver a Windows build of Campus Dashboard that reuses the accepted Swift domai
 
 ## User-review gate
 
-The main conversation must present `docs/windows-adaptation-review.md` and receive explicit user approval before implementation resumes. Earlier draft commits `101e014` and `40f30f0` are preserved as unreviewed work only; they do not authorize more code, CI configuration or fixes, packaging, or distribution work and cannot accumulate acceptance credit while this stage is paused. An existing workflow may run automatically after a documentation push, but its result remains informational until review approval.
+The main conversation presented `docs/windows-adaptation-review.md`, and the user explicitly approved the recommended defaults on 2026-09-12. Stage 16W may now continue within this file's scope. Earlier draft commits `101e014` and `40f30f0` remain historical pre-approval work; their results count only when revalidated after approval.
 
 ## Required startup context
 

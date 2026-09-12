@@ -34,12 +34,11 @@ The Windows target uses Swift 6.1 and SwiftCrossUI's native WinUI backend. It pr
 
 SIweb authorization, durable normalized data storage, reminders, background refresh, and full bilingual localization are still being ported, so this remains a test build rather than a completed daily-use release. The SIweb timetable is unavailable in this slice; Schedule stays inside the app and shows a clear empty state.
 
-Every successful Windows workflow produces two unsigned x64 packages:
+Every successful Windows workflow produces one unsigned x64 test package:
 
 - `CampusDashboard-Windows-0.1.0-portable-x64.zip`: extract the complete directory, then run `CampusDashboardWindows.exe` without moving the executable away from its bundled DLLs.
-- `CampusDashboard-Windows-0.1.0-x64.msi`: install or uninstall through Windows Settings like a normal desktop application.
 
-Use `SHA256SUMS.txt` to verify either download. Windows may show an unknown-publisher warning because this test build does not yet have a paid code-signing certificate. The Windows product stores no iCloud settings and contains no EventKit, Outlook, Microsoft Graph, Google Calendar, CalDAV, or other external-calendar adapter. A clean Windows build requires the Swift toolchain only in CI or for development; the packaged artifacts include the app's required dynamic libraries.
+Use `SHA256SUMS.txt` to verify the download. Windows may show an unknown-publisher warning because this test build does not yet have a paid code-signing certificate. The portable ZIP is the approved controlled-test format; a signed MSI or MSIX is deferred until the Windows beta is stable. The Windows product stores no iCloud settings and contains no EventKit, Outlook, Microsoft Graph, Google Calendar, CalDAV, or other external-calendar adapter. A clean Windows build requires the Swift toolchain only in CI or for development; the packaged artifact includes the app's required dynamic libraries.
 
 ## Explore the Stage 01 UI
 

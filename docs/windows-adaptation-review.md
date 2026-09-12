@@ -1,16 +1,15 @@
-# Campus Dashboard Windows adaptation — review draft
+# Campus Dashboard Windows adaptation — approved plan
 
-Status: **AWAITING USER REVIEW — DO NOT CONTINUE IMPLEMENTATION**
+Status: **APPROVED — 2026-09-12**
 
-This document proposes how to adapt the accepted macOS product to Windows. It is a design and delivery plan only. No additional Windows code, CI configuration or fixes, packaging, or publishing is authorized until the user approves this document.
+This document defines how to adapt the accepted macOS product to Windows. On 2026-09-12 the user explicitly approved all four recommended defaults, authorizing Stage 16W implementation, CI fixes, controlled-test packaging, and prerelease publishing within these boundaries.
 
 ## Current repository situation
 
 - The accepted macOS baseline is commit `776b2ef` on `main`.
 - Branch `codex/windows-port` already contains two draft implementation commits: `101e014` and `40f30f0`.
-- Those commits are already present on the branch's GitHub remote, but they have not been accepted as the Windows design or release.
-- Both slices are preserved unchanged as **unreviewed drafts**. The review-gate commit changes documentation only; no further implementation proceeds before approval.
-- GitHub may automatically run the existing Windows workflow after the documentation push. Any such result is informational only and will not be acted on or counted as acceptance before review approval.
+- Those commits were present before approval and remain traceable as pre-approval drafts.
+- Their behavior must be revalidated after approval before it counts toward Stage 16W evidence.
 
 ## Recommended first release
 
@@ -26,7 +25,7 @@ This document proposes how to adapt the accepted macOS product to Windows. It is
 | macOS component | Windows plan | Review rule |
 | --- | --- | --- |
 | Canonical Swift domain, fixtures, normalization, parsers, sync and safety rules | Reuse directly wherever they compile cleanly | Do not fork business rules into a second implementation |
-| SwiftUI/AppKit UI | First prove the existing SwiftCrossUI native WinUI approach on `windows-latest` | If the clean CI probe fails or blocks accessibility/distribution, stop and review a native Windows host around the shared core before changing direction |
+| SwiftUI/AppKit UI | Prove the existing SwiftCrossUI native WinUI approach on a compatible clean Windows runner | If the clean CI probe fails or blocks accessibility/distribution, stop and review a native Windows host around the shared core before changing direction |
 | Keychain | Windows Credential Manager, with DPAPI-backed protection where needed | No secret in SQLite, configuration, logs, diagnostics, fixtures, commands, commits, or artifacts |
 | EventKit / Apple Calendar | Omit completely | No Windows calendar substitute |
 | UserNotifications | In-app reminders for the first beta; Windows App SDK notifications before daily-use release | Notification permission/failure must not block source sync or in-app views |
@@ -36,8 +35,8 @@ This document proposes how to adapt the accepted macOS product to Windows. It is
 
 ## Delivery gates
 
-1. **Review approval** — agree on the four product decisions below. No code resumes before this gate.
-2. **Clean Windows proof** — from a clean checkout, `windows-latest` builds and launches the smallest native window using the shared domain and synthetic fixtures. macOS tests remain green.
+1. **Review approval** — passed on 2026-09-12 with all four recommended defaults accepted.
+2. **Clean Windows proof** — from a clean checkout, a compatible Windows runner builds and launches the smallest native window using the shared domain and synthetic fixtures. macOS tests remain green.
 3. **Local product core** — add versioned SQLite, normalized data, internal Today/Schedule/Tasks/Announcements/Needs Review/Settings, and deterministic offline/error behavior.
 4. **Read-only services and security** — add Canvas and SIweb adapters, Credential Manager/DPAPI, optional DeepSeek consent/validation, and auditable background cadence. Prove every connector is read-only and source failures remain isolated.
 5. **Windows experience** — finish English/Chinese localization, keyboard and screen-reader semantics, scaling, reminders, setup/recovery, diagnostics, and privacy controls.
@@ -48,7 +47,7 @@ This document proposes how to adapt the accepted macOS product to Windows. It is
 
 | Area | Required evidence |
 | --- | --- |
-| Clean build | GitHub `windows-latest` build and tests pass from a clean checkout; artifact hash recorded |
+| Clean build | GitHub's pinned compatible Windows runner builds and tests from a clean checkout; artifact hash recorded |
 | macOS regression | Existing macOS test/build/signature gates remain green after shared-code changes |
 | UI completeness | All six surfaces work in English and Simplified Chinese at common Windows scaling levels |
 | Accessibility | Keyboard-only navigation, focus order, visible focus, accessible names, and screen-reader smoke pass |
@@ -70,17 +69,13 @@ This document proposes how to adapt the accepted macOS product to Windows. It is
 - **Installer trust:** use portable ZIP for the first controlled smoke; require code signing before a broadly distributed installer.
 - **Private-data leakage:** keep CI synthetic, retain aggregate-only diagnostics, scan repository/artifacts, and perform real setup only on the user's Windows machine.
 
-## Decisions for review
+## Approved decisions
 
-Recommended defaults are:
+The user approved these defaults on 2026-09-12:
 
 1. Minimum system: **Windows 11 x64**.
 2. Distribution: **portable ZIP for the first controlled test, then a signed MSI/MSIX installer**.
 3. Reminders: **in-app reminders in the first beta; native Windows notifications required before daily-use release**.
 4. Migration: **no automatic macOS data or credential transfer in the first Windows release**.
 
-To approve all recommended defaults, reply:
-
-> 批准 Windows 方案，按推荐默认项执行
-
-Or list the numbered items you want changed. Until approval, Stage 16W remains paused and the preserved draft code will not be advanced or published.
+Any later change to these four decisions requires a new explicit review.

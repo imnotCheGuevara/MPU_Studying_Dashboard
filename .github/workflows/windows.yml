@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - codex/windows-port
+    paths-ignore:
+      - ".agent/**"
+      - "docs/**"
   pull_request:
   workflow_dispatch:
 
@@ -49,8 +52,9 @@ jobs:
       - name: Run Windows tests
         run: swift test -c release
 
-      - name: Build portable bundle and MSI
+      - name: Build portable bundle
         run: |
+          $ErrorActionPreference = "Stop"
           $bundlerSource = Join-Path $env:RUNNER_TEMP "swift-bundler"
           git clone --filter=blob:none https://github.com/moreSwift/swift-bundler.git $bundlerSource
           git -C $bundlerSource checkout 182fbd7f50a3c2ac1efd69659aac4f55605ca718
@@ -58,14 +62,23 @@ jobs:
           $bundlerScratch = Join-Path (Resolve-Path ".build") "swift-bundler-tool"
           swift build -c release --package-path $bundlerSource --scratch-path $bundlerScratch --product swift-bundler
           $bundlerBin = swift build -c release --package-path $bundlerSource --scratch-path $bundlerScratch --show-bin-path
-          & (Join-Path $bundlerBin "swift-bundler.exe") bundle CampusDashboard --bundler windowsMSI -c release
+          $swiftExecutable = (Get-Command swift -ErrorAction Stop).Source
+          $swiftBin = Split-Path $swiftExecutable -Parent
+          $swiftUSR = Split-Path $swiftBin -Parent
+          $swiftToolchain = Split-Path $swiftUSR -Parent
+          $bundlerExecutable = Join-Path $bundlerBin "swift-bundler.exe"
+          & $bundlerExecutable bundle CampusDashboard --bundler windowsGeneric --toolchain $swiftToolchain -c release
+          if ($LASTEXITCODE -ne 0) {
+            throw "swift-bundler failed with exit code $LASTEXITCODE"
+          }
 
           $bundleRoot = ".build/bundler/apps/CampusDashboard"
           $portableSource = Join-Path $bundleRoot "CampusDashboard.generic"
-          $msiSource = Join-Path $bundleRoot "CampusDashboard.msi"
+          if (-not (Test-Path $portableSource -PathType Container)) {
+            throw "Expected portable bundle was not produced at $portableSource"
+          }
           New-Item -ItemType Directory -Force artifacts | Out-Null
           Compress-Archive -Path "$portableSource/*" -DestinationPath "artifacts/CampusDashboard-Windows-0.1.0-portable-x64.zip"
-          Copy-Item $msiSource "artifacts/CampusDashboard-Windows-0.1.0-x64.msi"
 
           Get-ChildItem artifacts -File | Sort-Object Name | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
