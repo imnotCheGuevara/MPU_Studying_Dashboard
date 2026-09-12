@@ -52,6 +52,18 @@ jobs:
       - name: Run Windows tests
         run: swift test -c release
 
+      - name: Add Windows SDK tools to PATH
+        run: |
+          $windowsKitsBin = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bin"
+          $manifestTool = Get-ChildItem $windowsKitsBin -Filter mt.exe -Recurse -File |
+            Where-Object { $_.Directory.Name -eq "x64" } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          if (-not $manifestTool) {
+            throw "Windows SDK Manifest Tool (mt.exe) was not found under $windowsKitsBin"
+          }
+          $manifestTool.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
       - name: Build portable bundle
         run: |
           $ErrorActionPreference = "Stop"
@@ -66,16 +78,10 @@ jobs:
           $swiftBin = Split-Path $swiftExecutable -Parent
           $swiftUSR = Split-Path $swiftBin -Parent
           $swiftToolchain = Split-Path $swiftUSR -Parent
-          $windowsKitsBin = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bin"
-          $manifestTool = Get-ChildItem $windowsKitsBin -Filter mt.exe -Recurse -File |
-            Where-Object { $_.Directory.Name -eq "x64" } |
-            Sort-Object FullName -Descending |
-            Select-Object -First 1
-          if (-not $manifestTool) {
-            throw "Windows SDK Manifest Tool (mt.exe) was not found under $windowsKitsBin"
+          & "$env:SystemRoot\System32\cmd.exe" /c "where mt"
+          if ($LASTEXITCODE -ne 0) {
+            throw "mt.exe is not available to child cmd.exe processes"
           }
-          $env:PATH = "$($manifestTool.DirectoryName);$env:PATH"
-          Get-Command mt.exe -ErrorAction Stop | Out-Null
 
           $bundlerExecutable = Join-Path $bundlerBin "swift-bundler.exe"
           & $bundlerExecutable bundle CampusDashboard --bundler windowsGeneric --toolchain $swiftToolchain -c release
