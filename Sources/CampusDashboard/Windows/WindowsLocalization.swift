@@ -128,5 +128,27 @@ struct WindowsCopy: Sendable {
         default: return detail
         }
     }
+
+    func reminderDetail(_ reminder: WindowsInAppReminder) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        let due = formatter.string(from: reminder.dueAt)
+        let source = reminder.usesConfirmedSuggestion
+            ? text("confirmed suggestion", "已确认的建议日期")
+            : text("official date", "官方日期")
+
+        switch reminder.urgency {
+        case .overdue:
+            return text("Overdue · \(due) · \(source)", "已逾期 · \(due) · \(source)")
+        case .dueWithinHour:
+            return text("Due within 1 hour · \(due) · \(source)", "1 小时内到期 · \(due) · \(source)")
+        case .dueToday:
+            return text("Due within 24 hours · \(due) · \(source)", "24 小时内到期 · \(due) · \(source)")
+        case .upcoming:
+            return text("Due within 7 days · \(due) · \(source)", "7 天内到期 · \(due) · \(source)")
+        }
+    }
 }
 #endif

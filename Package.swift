@@ -33,6 +33,7 @@ let package = Package(
                 "Windows/WindowsCanvasSnapshotMapper.swift",
                 "Windows/WindowsSnapshotStore.swift",
                 "Windows/WindowsLocalization.swift",
+                "Windows/WindowsInAppReminder.swift",
                 "Windows/WindowsDashboardState.swift",
                 "Windows/CampusDashboardWindowsApp.swift"
             ],

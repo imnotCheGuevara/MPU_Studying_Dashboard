@@ -75,6 +75,10 @@ private struct TodayPreview: View {
     let snapshot: DashboardSnapshot
     let copy: WindowsCopy
 
+    private var reminders: [WindowsInAppReminder] {
+        WindowsInAppReminderEngine().reminders(in: snapshot)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             ScreenTitle(
@@ -86,6 +90,22 @@ private struct TodayPreview: View {
                 SummaryCard(value: "\(snapshot.courses.count)", label: copy.text("Courses", "课程"))
                 SummaryCard(value: "\(snapshot.tasks.filter(\.appearsInNormalTaskList).count)", label: copy.text("Tasks", "任务"))
                 SummaryCard(value: "\(snapshot.announcements.filter { !$0.isLocallyRead }.count)", label: copy.text("Unread", "未读"))
+            }
+
+            Text(copy.text("In-app reminders", "应用内提醒"))
+                .font(.headline)
+            if reminders.isEmpty {
+                ContentRow(
+                    title: copy.text("Nothing urgent", "暂无紧急事项"),
+                    detail: copy.text(
+                        "Incomplete tasks due within seven days appear here. This beta does not run a background reminder service.",
+                        "七天内到期且未完成的任务会显示在这里。此测试版不会运行后台提醒服务。"
+                    )
+                )
+            } else {
+                ForEach(Array(reminders.prefix(5)), id: \.id) { reminder in
+                    ContentRow(title: reminder.title, detail: copy.reminderDetail(reminder))
+                }
             }
 
             Text(copy.text("Courses", "课程"))

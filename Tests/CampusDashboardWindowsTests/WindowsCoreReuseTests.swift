@@ -178,6 +178,69 @@ final class WindowsCoreReuseTests: XCTestCase {
         XCTAssertEqual(chinese.sourceHealthDetail("Read-only sync completed"), "只读同步已完成")
     }
 
+    func testInAppRemindersUseOfficialOrConfirmedDatesOnly() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let course = SyntheticFixtures.interactionDesign
+        let official = LearningTask(
+            id: UUID(), sourceAccountID: "canvas", sourceObjectID: "official", courseID: course.id,
+            title: "Official", kind: .assignment, officialDueAt: now.addingTimeInterval(30 * 60),
+            suggestedCompleteAt: now.addingTimeInterval(10 * 60), suggestedDateConfirmed: false,
+            source: .canvas, isLocallyComplete: false, localPriority: .high
+        )
+        let confirmed = LearningTask(
+            id: UUID(), sourceAccountID: "canvas", sourceObjectID: "confirmed", courseID: course.id,
+            title: "Confirmed", kind: .reading, officialDueAt: nil,
+            suggestedCompleteAt: now.addingTimeInterval(2 * 24 * 60 * 60), suggestedDateConfirmed: true,
+            source: .canvas, isLocallyComplete: false, localPriority: .medium
+        )
+        let unconfirmed = LearningTask(
+            id: UUID(), sourceAccountID: "canvas", sourceObjectID: "unconfirmed", courseID: course.id,
+            title: "Unconfirmed", kind: .quiz, officialDueAt: nil,
+            suggestedCompleteAt: now.addingTimeInterval(20 * 60), suggestedDateConfirmed: false,
+            source: .canvas, isLocallyComplete: false, localPriority: .low
+        )
+        let snapshot = DashboardSnapshot(
+            sourceHealth: [], courses: [course], meetings: [],
+            tasks: [unconfirmed, confirmed, official], announcements: [], confirmations: []
+        )
+
+        let reminders = WindowsInAppReminderEngine().reminders(in: snapshot, now: now)
+
+        XCTAssertEqual(reminders.map(\.title), ["Official", "Confirmed"])
+        XCTAssertEqual(reminders.map(\.urgency), [.dueWithinHour, .upcoming])
+        XCTAssertFalse(reminders[0].usesConfirmedSuggestion)
+        XCTAssertTrue(reminders[1].usesConfirmedSuggestion)
+        XCTAssertEqual(reminders[0].dueAt, official.officialDueAt)
+    }
+
+    func testInAppRemindersExcludeCompletedAndOutOfWindowTasks() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let course = SyntheticFixtures.interactionDesign
+        func task(_ title: String, due: TimeInterval, complete: Bool = false) -> LearningTask {
+            LearningTask(
+                id: UUID(), sourceAccountID: "canvas", sourceObjectID: title, courseID: course.id,
+                title: title, kind: .assignment, officialDueAt: now.addingTimeInterval(due),
+                suggestedCompleteAt: nil, suggestedDateConfirmed: false,
+                source: .canvas, isLocallyComplete: complete, localPriority: .medium
+            )
+        }
+        let snapshot = DashboardSnapshot(
+            sourceHealth: [], courses: [course], meetings: [],
+            tasks: [
+                task("Recent overdue", due: -2 * 24 * 60 * 60),
+                task("Too old", due: -8 * 24 * 60 * 60),
+                task("Too far", due: 8 * 24 * 60 * 60),
+                task("Complete", due: 60 * 60, complete: true)
+            ],
+            announcements: [], confirmations: []
+        )
+
+        let reminders = WindowsInAppReminderEngine().reminders(in: snapshot, now: now)
+
+        XCTAssertEqual(reminders.map(\.title), ["Recent overdue"])
+        XCTAssertEqual(reminders.first?.urgency, .overdue)
+    }
+
     @MainActor
     func testLanguageChoicePersistsAndUpdatesVisibleStatus() throws {
         let suiteName = "CampusDashboardWindowsLanguageTests.\(UUID().uuidString)"
