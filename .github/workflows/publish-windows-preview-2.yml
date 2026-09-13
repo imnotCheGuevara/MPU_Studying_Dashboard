@@ -1,0 +1,114 @@
+name: Publish Windows Preview 2 draft
+
+on:
+  push:
+    branches:
+      - codex/windows-port
+    paths:
+      - ".github/workflows/publish-windows-preview-2.yml"
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish-draft:
+    runs-on: ubuntu-latest
+    env:
+      ARTIFACT_ID: "10319558042"
+      ARTIFACT_NAME: CampusDashboard-Windows-0.1.0
+      EXPECTED_ARTIFACT_DIGEST: sha256:a0dbcf06b9c7ff18255b1a4cdd4e8b00920c5db71549d15b1dbc19d8f61e69a5
+      EXPECTED_SOURCE_SHA: 4c9aab69900148ad08804ef71e42eaca0eef3dd7
+      RELEASE_TAG: v0.1.0-windows-preview.2
+    steps:
+      - name: Verify source artifact provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          artifact_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}")"
+          actual_digest="$(jq -r '.digest' <<<"${artifact_json}")"
+          actual_source_sha="$(jq -r '.workflow_run.head_sha' <<<"${artifact_json}")"
+          expired="$(jq -r '.expired' <<<"${artifact_json}")"
+
+          test "${expired}" = "false"
+          test "${actual_digest}" = "${EXPECTED_ARTIFACT_DIGEST}"
+          test "${actual_source_sha}" = "${EXPECTED_SOURCE_SHA}"
+
+      - name: Download the verified Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ env.ARTIFACT_ID }}
+          github-token: ${{ github.token }}
+          merge-multiple: true
+          path: release-artifact
+
+      - name: Verify portable bundle
+        run: |
+          set -euo pipefail
+          cd release-artifact
+
+          bundle="CampusDashboard-Windows-0.1.0-portable-x64.zip"
+          checksum="SHA256SUMS.txt"
+          test -f "${bundle}"
+          test -f "${checksum}"
+          sha256sum --check "${checksum}"
+          unzip -t "${bundle}"
+          unzip -Z1 "${bundle}" > "${RUNNER_TEMP}/windows-preview-2-files.txt"
+
+          grep -Fxq "CampusDashboard.exe" "${RUNNER_TEMP}/windows-preview-2-files.txt"
+          grep -Fxq "WindowsAppRuntimeInstaller.exe" "${RUNNER_TEMP}/windows-preview-2-files.txt"
+
+          if grep -Eiq '(icloud|eventkit|outlook|microsoft[.]graph|caldav|google.?calendar)' "${RUNNER_TEMP}/windows-preview-2-files.txt"; then
+            echo "The Windows bundle contains a prohibited integration filename." >&2
+            exit 1
+          fi
+
+          echo "Verified $(wc -l < "${RUNNER_TEMP}/windows-preview-2-files.txt") portable bundle files."
+
+      - name: Create release notes
+        run: |
+          cat > "${RUNNER_TEMP}/windows-preview-2-notes.md" <<'EOF'
+          Controlled Windows 11 x64 preview for real-machine testing.
+
+          Included:
+          - native WinUI application with Today, Schedule, Tasks, Announcements, Needs Review, and Settings;
+          - English and Simplified Chinese UI with a persistent language choice;
+          - authorized read-only Canvas synchronization;
+          - Canvas token storage in Windows Credential Manager;
+          - restart-safe normalized offline snapshots in `%LOCALAPPDATA%\CampusDashboard\snapshot-v1.json`;
+          - foreground-only in-app reminders whose official dates take precedence and whose suggested dates require explicit confirmation.
+
+          Privacy and product boundaries:
+          - no iCloud, Apple Calendar, Outlook, Microsoft Graph, Google Calendar, CalDAV, or other external-calendar integration;
+          - no write access to Canvas or SIweb;
+          - never include tokens, cookies, school content, raw API responses, or Credential Manager contents in defect reports.
+
+          Known limitations:
+          - unsigned portable ZIP intended for controlled testing;
+          - SIweb, DeepSeek, background refresh, native Windows notifications, and a signed installer are not included yet.
+
+          Download both assets and verify the ZIP against `SHA256SUMS.txt` before extracting it. If Windows App Runtime is missing, run the bundled `WindowsAppRuntimeInstaller.exe` once. Full setup, upgrade, uninstall, and privacy-safe smoke-test instructions are in [the Windows preview testing guide](https://github.com/imnotCheGuevara/MPU_Studying_Dashboard/blob/codex/windows-port/docs/windows-preview-testing.md).
+
+          Provenance: the attached artifact was built and tested on Windows Server 2022 by [workflow run 34761647634](https://github.com/imnotCheGuevara/MPU_Studying_Dashboard/actions/runs/34761647634) from functional source commit `4c9aab69900148ad08804ef71e42eaca0eef3dd7`.
+          EOF
+
+      - name: Create GitHub prerelease draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "Release ${RELEASE_TAG} already exists; refusing to overwrite it." >&2
+            exit 1
+          fi
+
+          gh release create "${RELEASE_TAG}" \
+            "release-artifact/CampusDashboard-Windows-0.1.0-portable-x64.zip" \
+            "release-artifact/SHA256SUMS.txt" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "${GITHUB_SHA}" \
+            --title "Campus Dashboard Windows Preview 2" \
+            --notes-file "${RUNNER_TEMP}/windows-preview-2-notes.md" \
+            --prerelease \
+            --draft
