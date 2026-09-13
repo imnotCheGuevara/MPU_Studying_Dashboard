@@ -12,14 +12,14 @@ private enum WindowsSection: String, CaseIterable, Identifiable {
 
     var id: Self { self }
 
-    var title: String {
+    func title(_ copy: WindowsCopy) -> String {
         switch self {
-        case .today: "今日 · Today"
-        case .schedule: "日程 · Schedule"
-        case .tasks: "任务 · Tasks"
-        case .announcements: "公告 · Announcements"
-        case .needsReview: "待确认 · Needs Review"
-        case .settings: "设置 · Settings"
+        case .today: copy.text("Today", "今日")
+        case .schedule: copy.text("Schedule", "日程")
+        case .tasks: copy.text("Tasks", "任务")
+        case .announcements: copy.text("Announcements", "公告")
+        case .needsReview: copy.text("Needs Review", "待确认")
+        case .settings: copy.text("Settings", "设置")
         }
     }
 }
@@ -36,11 +36,13 @@ public struct CampusDashboardWindowsRootView: View {
                 Text("Campus Dashboard")
                     .font(.title2)
                     .emphasized()
-                Text(state.isShowingPreview ? "Windows · preview data" : "Windows · Canvas connected")
+                Text(state.isShowingPreview
+                     ? state.copy.text("Windows · preview data", "Windows · 预览数据")
+                     : state.copy.text("Windows · Canvas connected", "Windows · Canvas 已连接"))
                     .font(.caption)
                 Divider()
                 List(WindowsSection.allCases, selection: $selectedSection) { section in
-                    Text(section.title)
+                    Text(section.title(state.copy))
                 }
             }
             .padding(16)
@@ -50,15 +52,15 @@ public struct CampusDashboardWindowsRootView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     switch selectedSection ?? .today {
                     case .today:
-                        TodayPreview(snapshot: state.snapshot)
+                        TodayPreview(snapshot: state.snapshot, copy: state.copy)
                     case .schedule:
-                        SchedulePreview(snapshot: state.snapshot)
+                        SchedulePreview(snapshot: state.snapshot, copy: state.copy)
                     case .tasks:
-                        TasksPreview(snapshot: state.snapshot)
+                        TasksPreview(snapshot: state.snapshot, copy: state.copy)
                     case .announcements:
-                        AnnouncementsPreview(snapshot: state.snapshot)
+                        AnnouncementsPreview(snapshot: state.snapshot, copy: state.copy)
                     case .needsReview:
-                        NeedsReviewPreview(snapshot: state.snapshot)
+                        NeedsReviewPreview(snapshot: state.snapshot, copy: state.copy)
                     case .settings:
                         SettingsView(state: state)
                     }
@@ -71,18 +73,22 @@ public struct CampusDashboardWindowsRootView: View {
 
 private struct TodayPreview: View {
     let snapshot: DashboardSnapshot
+    let copy: WindowsCopy
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            ScreenTitle("今日 · Today", subtitle: "One focused view of classes and work")
+            ScreenTitle(
+                copy.text("Today", "今日"),
+                subtitle: copy.text("One focused view of classes and work", "集中查看课程和任务")
+            )
 
             HStack(spacing: 16) {
-                SummaryCard(value: "\(snapshot.courses.count)", label: "Courses")
-                SummaryCard(value: "\(snapshot.tasks.filter(\.appearsInNormalTaskList).count)", label: "Tasks")
-                SummaryCard(value: "\(snapshot.announcements.filter { !$0.isLocallyRead }.count)", label: "Unread")
+                SummaryCard(value: "\(snapshot.courses.count)", label: copy.text("Courses", "课程"))
+                SummaryCard(value: "\(snapshot.tasks.filter(\.appearsInNormalTaskList).count)", label: copy.text("Tasks", "任务"))
+                SummaryCard(value: "\(snapshot.announcements.filter { !$0.isLocallyRead }.count)", label: copy.text("Unread", "未读"))
             }
 
-            Text("Courses")
+            Text(copy.text("Courses", "课程"))
                 .font(.headline)
             ForEach(Array(snapshot.courses.prefix(3)), id: \.id) { course in
                 ContentRow(
@@ -91,20 +97,21 @@ private struct TodayPreview: View {
                 )
             }
 
-            Text("Priority work")
+            Text(copy.text("Priority work", "优先任务"))
                 .font(.headline)
             ForEach(Array(snapshot.tasks.filter(\.appearsInNormalTaskList).prefix(2)), id: \.id) { task in
                 ContentRow(
                     title: task.title,
-                    detail: "\(task.localPriority.rawValue) · \(Self.dateTime(task.officialDueAt))"
+                    detail: "\(copy.priority(task.localPriority)) · \(dateTime(task.officialDueAt))"
                 )
             }
         }
     }
 
-    private static func dateTime(_ date: Date?) -> String {
-        guard let date else { return "No official due date" }
+    private func dateTime(_ date: Date?) -> String {
+        guard let date else { return copy.text("No official due date", "没有官方截止日期") }
         let formatter = DateFormatter()
+        formatter.locale = copy.locale
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
         return formatter.string(from: date)
@@ -113,19 +120,28 @@ private struct TodayPreview: View {
 
 private struct SchedulePreview: View {
     let snapshot: DashboardSnapshot
+    let copy: WindowsCopy
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            ScreenTitle("日程 · Schedule", subtitle: "Local in-app schedule")
+            ScreenTitle(
+                copy.text("Schedule", "日程"),
+                subtitle: copy.text("Local in-app schedule", "仅在应用内显示的日程")
+            )
             if snapshot.meetings.isEmpty {
                 ContentRow(
-                    title: "No timetable data on Windows yet",
-                    detail: "SIweb sign-in is intentionally disabled until a safe Windows adapter is available."
+                    title: copy.text("No timetable data on Windows yet", "Windows 版暂时没有课程表数据"),
+                    detail: copy.text(
+                        "SIweb sign-in is intentionally disabled until a safe Windows adapter is available.",
+                        "安全的 Windows 适配器完成前，SIweb 登录功能保持关闭。"
+                    )
                 )
             } else {
                 ForEach(snapshot.meetings, id: \.id) { meeting in
                     ContentRow(
-                        title: meeting.isCancelled ? "Cancelled · \(meeting.title)" : meeting.title,
+                        title: meeting.isCancelled
+                            ? "\(copy.text("Cancelled", "已取消")) · \(meeting.title)"
+                            : meeting.title,
                         detail: meeting.location
                     )
                 }
@@ -136,12 +152,19 @@ private struct SchedulePreview: View {
 
 private struct TasksPreview: View {
     let snapshot: DashboardSnapshot
+    let copy: WindowsCopy
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            ScreenTitle("任务 · Tasks", subtitle: "Official dates remain authoritative")
+            ScreenTitle(
+                copy.text("Tasks", "任务"),
+                subtitle: copy.text("Official dates remain authoritative", "官方日期始终是最终依据")
+            )
             ForEach(snapshot.tasks.filter(\.appearsInNormalTaskList), id: \.id) { task in
-                ContentRow(title: task.title, detail: "\(task.kind.rawValue) · \(task.localPriority.rawValue)")
+                ContentRow(
+                    title: task.title,
+                    detail: "\(copy.taskKind(task.kind)) · \(copy.priority(task.localPriority))"
+                )
             }
         }
     }
@@ -149,10 +172,14 @@ private struct TasksPreview: View {
 
 private struct AnnouncementsPreview: View {
     let snapshot: DashboardSnapshot
+    let copy: WindowsCopy
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            ScreenTitle("公告 · Announcements", subtitle: "Complete read-only source feed")
+            ScreenTitle(
+                copy.text("Announcements", "公告"),
+                subtitle: copy.text("Complete read-only source feed", "完整的只读来源信息流")
+            )
             ForEach(snapshot.announcements, id: \.id) { announcement in
                 ContentRow(title: announcement.title, detail: announcement.summary)
             }
@@ -162,10 +189,14 @@ private struct AnnouncementsPreview: View {
 
 private struct NeedsReviewPreview: View {
     let snapshot: DashboardSnapshot
+    let copy: WindowsCopy
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            ScreenTitle("待确认 · Needs Review", subtitle: "Inferred dates never apply automatically")
+            ScreenTitle(
+                copy.text("Needs Review", "待确认"),
+                subtitle: copy.text("Inferred dates never apply automatically", "推断日期绝不会自动应用")
+            )
             ForEach(snapshot.confirmations, id: \.id) { candidate in
                 ContentRow(title: candidate.suggestion, detail: candidate.rationale)
             }
@@ -186,25 +217,40 @@ private struct SettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            ScreenTitle("设置 · Settings", subtitle: "Connect Canvas with read-only access")
-            Text("Canvas HTTPS URL")
+            ScreenTitle(
+                state.copy.text("Settings", "设置"),
+                subtitle: state.copy.text("Connect Canvas with read-only access", "以只读方式连接 Canvas")
+            )
+            Text(state.copy.text("Language", "语言"))
+                .font(.headline)
+            HStack(spacing: 12) {
+                Button("English") { state.selectLanguage(.english) }
+                    .disabled(state.language == .english)
+                Button("简体中文") { state.selectLanguage(.simplifiedChinese) }
+                    .disabled(state.language == .simplifiedChinese)
+            }
+            Text(state.copy.text("Canvas HTTPS URL", "Canvas HTTPS 地址"))
                 .font(.headline)
             TextField("https://canvas.example.edu", text: baseURLBinding)
                 .frame(maxWidth: 560)
-            Text("Canvas access token")
+            Text(state.copy.text("Canvas access token", "Canvas 访问令牌"))
                 .font(.headline)
             SecureField(
-                state.hasSavedCanvasToken ? "Saved securely — leave blank to reuse" : "Paste token once",
+                state.hasSavedCanvasToken
+                    ? state.copy.text("Saved securely — leave blank to reuse", "已安全保存——留空即可继续使用")
+                    : state.copy.text("Paste token once", "只需粘贴一次令牌"),
                 text: tokenBinding
             )
             .frame(maxWidth: 560)
 
             HStack(spacing: 12) {
-                Button(state.isSyncing ? "Syncing…" : "Save and sync") {
+                Button(state.isSyncing
+                       ? state.copy.text("Syncing…", "正在同步……")
+                       : state.copy.text("Save and sync", "保存并同步")) {
                     Task { await state.synchronizeCanvas() }
                 }
                 .disabled(state.isSyncing)
-                Button("Forget Canvas") {
+                Button(state.copy.text("Forget Canvas", "忘记 Canvas")) {
                     state.forgetCanvas()
                 }
                 .disabled(state.isSyncing || (!state.hasSavedCanvasToken && state.isShowingPreview))
@@ -213,11 +259,14 @@ private struct SettingsView: View {
             Text(state.statusMessage)
                 .font(.subheadline)
             ContentRow(
-                title: "Windows privacy boundary",
-                detail: "Token: Windows Credential Manager · Offline data: local app folder · Read-only Canvas · No iCloud, Apple Calendar, Outlook, or external calendar writes"
+                title: state.copy.text("Windows privacy boundary", "Windows 隐私边界"),
+                detail: state.copy.text(
+                    "Token: Windows Credential Manager · Offline data: local app folder · Read-only Canvas · No iCloud, Apple Calendar, Outlook, or external calendar writes",
+                    "令牌：Windows 凭据管理器 · 离线数据：本地应用文件夹 · Canvas 只读 · 不使用 iCloud、Apple 日历、Outlook，也不写入任何外部日历"
+                )
             )
             ForEach(state.snapshot.sourceHealth, id: \.id) { source in
-                ContentRow(title: source.source.rawValue, detail: source.detail)
+                ContentRow(title: source.source.rawValue, detail: state.copy.sourceHealthDetail(source.detail))
             }
         }
     }

@@ -13,30 +13,38 @@ final class WindowsDashboardState: SwiftCrossUI.ObservableObject {
     @SwiftCrossUI.Published var hasSavedCanvasToken = false
     @SwiftCrossUI.Published var isSyncing = false
     @SwiftCrossUI.Published var isShowingPreview = true
+    @SwiftCrossUI.Published var language = WindowsLanguage.english
 
     private let configurationStore: UserDefaultsCanvasConfigurationStore
     private let secretStore: any SecretStore
     private let snapshotStore: WindowsSnapshotStore
+    private let languageStore: WindowsLanguageStore
+
+    var copy: WindowsCopy { WindowsCopy(language: language) }
 
     init(
         configurationStore: UserDefaultsCanvasConfigurationStore = UserDefaultsCanvasConfigurationStore(),
         secretStore: any SecretStore = WindowsCredentialSecretStore(
             service: "com.campusdashboard.desktop.canvas"
         ),
-        snapshotStore: WindowsSnapshotStore = WindowsSnapshotStore()
+        snapshotStore: WindowsSnapshotStore = WindowsSnapshotStore(),
+        languageStore: WindowsLanguageStore = WindowsLanguageStore()
     ) {
         self.configurationStore = configurationStore
         self.secretStore = secretStore
         self.snapshotStore = snapshotStore
+        self.languageStore = languageStore
+        language = languageStore.load()
+        statusMessage = copy.previewStatus
 
         do {
             if let savedSnapshot = try snapshotStore.load() {
                 snapshot = savedSnapshot
                 isShowingPreview = false
-                statusMessage = "Saved Canvas data is available offline. Sync to refresh it."
+                statusMessage = copy.offlineStatus
             }
         } catch {
-            statusMessage = "Saved Canvas data could not be loaded. Preview data is active."
+            statusMessage = copy.unreadableSnapshotStatus
         }
 
         if let configuration = try? configurationStore.load() {
@@ -45,10 +53,16 @@ final class WindowsDashboardState: SwiftCrossUI.ObservableObject {
         hasSavedCanvasToken = (try? secretStore.data(account: CanvasConfiguration.tokenAccount)) != nil
     }
 
+    func selectLanguage(_ newLanguage: WindowsLanguage) {
+        language = newLanguage
+        languageStore.save(newLanguage)
+        statusMessage = isShowingPreview ? copy.previewStatus : copy.offlineStatus
+    }
+
     func synchronizeCanvas() async {
         guard !isSyncing else { return }
         isSyncing = true
-        statusMessage = "Syncing Canvas read-only data…"
+        statusMessage = copy.syncingStatus
         defer { isSyncing = false }
 
         do {
@@ -82,12 +96,16 @@ final class WindowsDashboardState: SwiftCrossUI.ObservableObject {
             isShowingPreview = false
             do {
                 try snapshotStore.save(synchronizedSnapshot, now: now)
-                statusMessage = "Canvas synced and saved for offline use: \(source.courses.count) courses, \(source.tasks.count) tasks, \(source.announcements.count) announcements."
+                statusMessage = copy.syncedStatus(
+                    courses: source.courses.count,
+                    tasks: source.tasks.count,
+                    announcements: source.announcements.count
+                )
             } catch {
-                statusMessage = "Canvas synced, but its offline copy could not be saved."
+                statusMessage = copy.snapshotSaveFailedStatus
             }
         } catch {
-            statusMessage = "Canvas sync failed: \(safeDescription(error))"
+            statusMessage = copy.syncFailedStatus(safeDescription(error))
         }
     }
 
@@ -111,16 +129,30 @@ final class WindowsDashboardState: SwiftCrossUI.ObservableObject {
         snapshot = SyntheticFixtures.populated
         isShowingPreview = true
         statusMessage = removalFailed
-            ? "Some saved Canvas data could not be removed. Close the app and try again."
-            : "Canvas credentials and offline data removed. Preview data is active."
+            ? copy.removalPartialStatus
+            : copy.removedStatus
     }
 
     private func safeDescription(_ error: Error) -> String {
-        if let error = error as? CanvasConnectorError { return error.diagnostic }
-        if let error = error as? CanvasConfigurationError { return error.description }
-        if let error = error as? SecretStoreError { return error.description }
-        if let error = error as? WindowsSnapshotStoreError { return error.description }
-        return "Unexpected error. Check the URL, token, and network connection."
+        if language == .english {
+            if let error = error as? CanvasConnectorError { return error.diagnostic }
+            if let error = error as? CanvasConfigurationError { return error.description }
+            if let error = error as? SecretStoreError { return error.description }
+            if let error = error as? WindowsSnapshotStoreError { return error.description }
+            return "Unexpected error. Check the URL, token, and network connection."
+        }
+
+        if let error = error as? CanvasConfigurationError {
+            switch error {
+            case .invalidBaseURL: return "Canvas 地址必须是 HTTPS，且不能包含凭据、查询参数或片段。"
+            case .missingBaseURL: return "尚未配置 Canvas 地址。"
+            case .emptyToken: return "Canvas 授权令牌为空。"
+            }
+        }
+        if error is SecretStoreError { return "无法访问 Windows 凭据管理器。" }
+        if error is WindowsSnapshotStoreError { return "无法访问本地离线数据。" }
+        if error is CanvasConnectorError { return "请检查地址、令牌和网络连接。" }
+        return "发生意外错误，请检查地址、令牌和网络连接。"
     }
 }
 #endif

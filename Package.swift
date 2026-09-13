@@ -32,6 +32,7 @@ let package = Package(
                 "Windows/WindowsCredentialSecretStore.swift",
                 "Windows/WindowsCanvasSnapshotMapper.swift",
                 "Windows/WindowsSnapshotStore.swift",
+                "Windows/WindowsLocalization.swift",
                 "Windows/WindowsDashboardState.swift",
                 "Windows/CampusDashboardWindowsApp.swift"
             ],

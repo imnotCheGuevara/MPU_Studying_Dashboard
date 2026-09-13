@@ -152,6 +152,57 @@ final class WindowsCoreReuseTests: XCTestCase {
         XCTAssertEqual(url.deletingLastPathComponent().lastPathComponent, "CampusDashboard")
     }
 
+    func testWindowsLanguageFollowsSupportedSystemLocale() {
+        XCTAssertEqual(
+            WindowsLanguage.systemDefault(preferredLanguages: ["zh-Hans-CN"]),
+            .simplifiedChinese
+        )
+        XCTAssertEqual(
+            WindowsLanguage.systemDefault(preferredLanguages: ["en-US"]),
+            .english
+        )
+        XCTAssertEqual(
+            WindowsLanguage.systemDefault(preferredLanguages: ["zh-Hant-HK"]),
+            .english
+        )
+    }
+
+    func testWindowsCopyLocalizesDomainLabels() {
+        let english = WindowsCopy(language: .english)
+        let chinese = WindowsCopy(language: .simplifiedChinese)
+
+        XCTAssertEqual(english.priority(.medium), "Medium")
+        XCTAssertEqual(chinese.priority(.medium), "中")
+        XCTAssertEqual(english.taskKind(.reading), "Reading")
+        XCTAssertEqual(chinese.taskKind(.reading), "阅读")
+        XCTAssertEqual(chinese.sourceHealthDetail("Read-only sync completed"), "只读同步已完成")
+    }
+
+    @MainActor
+    func testLanguageChoicePersistsAndUpdatesVisibleStatus() throws {
+        let suiteName = "CampusDashboardWindowsLanguageTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        let languageStore = WindowsLanguageStore(defaults: defaults)
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CampusDashboardWindowsLanguageTests-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+            try? FileManager.default.removeItem(at: directory)
+        }
+
+        let state = WindowsDashboardState(
+            configurationStore: UserDefaultsCanvasConfigurationStore(defaults: defaults),
+            secretStore: FakeSecretStore(),
+            snapshotStore: WindowsSnapshotStore(fileURL: directory.appendingPathComponent("snapshot-v1.json")),
+            languageStore: languageStore
+        )
+        state.selectLanguage(.simplifiedChinese)
+
+        XCTAssertEqual(state.language, .simplifiedChinese)
+        XCTAssertTrue(state.statusMessage.contains("预览数据"))
+        XCTAssertEqual(languageStore.load(preferredLanguages: ["en-US"]), .simplifiedChinese)
+    }
+
     @MainActor
     func testDashboardStateRestoresSnapshotAfterRestartAndForgetRemovesIt() throws {
         let suiteName = "CampusDashboardWindowsTests.\(UUID().uuidString)"

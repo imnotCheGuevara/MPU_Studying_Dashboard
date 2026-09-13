@@ -32,7 +32,7 @@ The ad-hoc signature is a reproducible local-development baseline, not a release
 
 The Windows target uses Swift 6.1 and SwiftCrossUI's native WinUI backend. It provides the six learner surfaces—Today, Schedule, Tasks, Announcements, Needs Review, and Settings—from the shared domain model. Settings accepts an authorized Canvas HTTPS URL and access token, stores the token only in Windows Credential Manager, and performs the same read-only Canvas API synchronization used by the macOS codebase. Successful synchronized snapshots are stored at `%LOCALAPPDATA%\CampusDashboard\snapshot-v1.json` so the last normalized read-only data remains available after restart or while offline. **Forget Canvas** removes the credential, URL, and offline snapshot. Until Canvas is configured, the UI clearly labels its deterministic preview data.
 
-SIweb authorization, reminders, background refresh, and full bilingual localization are still being ported, so this remains a test build rather than a completed daily-use release. The SIweb timetable is unavailable in this slice; Schedule stays inside the app and shows a clear empty state.
+The Windows UI follows a supported English or Simplified Chinese system language on first launch, offers a persistent language switch in Settings, and localizes its navigation, controls, safety text, status, empty states, dates, task types, and priorities. SIweb authorization, reminders, and background refresh are still being ported, so this remains a test build rather than a completed daily-use release. The SIweb timetable is unavailable in this slice; Schedule stays inside the app and shows a clear empty state.
 
 Every successful Windows workflow produces one unsigned x64 test package:
 
