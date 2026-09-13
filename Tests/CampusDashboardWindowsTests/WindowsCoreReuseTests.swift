@@ -110,5 +110,83 @@ final class WindowsCoreReuseTests: XCTestCase {
             XCTAssertEqual(error as? SecretStoreError, .notFound)
         }
     }
+
+    func testSnapshotStoreRoundTripsCanonicalDataAndRemovesIt() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CampusDashboardWindowsTests-\(UUID().uuidString)", isDirectory: true)
+        let fileURL = directory.appendingPathComponent("snapshot-v1.json")
+        let store = WindowsSnapshotStore(fileURL: fileURL)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let expected = SyntheticFixtures.populated
+        try store.save(expected, now: Date(timeIntervalSince1970: 1_800_000_000))
+
+        XCTAssertEqual(try store.load(), expected)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fileURL.path))
+
+        try store.remove()
+        XCTAssertNil(try store.load())
+    }
+
+    func testSnapshotStoreRejectsCorruptDataWithoutReturningPartialContent() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CampusDashboardWindowsTests-\(UUID().uuidString)", isDirectory: true)
+        let fileURL = directory.appendingPathComponent("snapshot-v1.json")
+        let store = WindowsSnapshotStore(fileURL: fileURL)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Data("not-json".utf8).write(to: fileURL)
+
+        XCTAssertThrowsError(try store.load()) { error in
+            XCTAssertEqual(error as? WindowsSnapshotStoreError, .unreadableArchive)
+        }
+    }
+
+    func testDefaultSnapshotLocationUsesLocalAppData() {
+        let url = WindowsSnapshotStore.defaultFileURL(
+            environment: ["LOCALAPPDATA": "C:\\Users\\Test\\AppData\\Local"]
+        )
+
+        XCTAssertEqual(url.lastPathComponent, "snapshot-v1.json")
+        XCTAssertEqual(url.deletingLastPathComponent().lastPathComponent, "CampusDashboard")
+    }
+
+    @MainActor
+    func testDashboardStateRestoresSnapshotAfterRestartAndForgetRemovesIt() throws {
+        let suiteName = "CampusDashboardWindowsTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        let configurationStore = UserDefaultsCanvasConfigurationStore(defaults: defaults)
+        let secrets = FakeSecretStore()
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CampusDashboardWindowsTests-\(UUID().uuidString)", isDirectory: true)
+        let snapshotStore = WindowsSnapshotStore(fileURL: directory.appendingPathComponent("snapshot-v1.json"))
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+            try? FileManager.default.removeItem(at: directory)
+        }
+
+        try configurationStore.saveBaseURL(XCTUnwrap(URL(string: "https://canvas.example.edu")))
+        try secrets.set(Data("test-only-token".utf8), account: CanvasConfiguration.tokenAccount)
+        try snapshotStore.save(SyntheticFixtures.populated)
+
+        let state = WindowsDashboardState(
+            configurationStore: configurationStore,
+            secretStore: secrets,
+            snapshotStore: snapshotStore
+        )
+
+        XCTAssertFalse(state.isShowingPreview)
+        XCTAssertEqual(state.snapshot, SyntheticFixtures.populated)
+        XCTAssertTrue(state.hasSavedCanvasToken)
+        XCTAssertEqual(state.canvasBaseURL, "https://canvas.example.edu")
+
+        state.forgetCanvas()
+
+        XCTAssertTrue(state.isShowingPreview)
+        XCTAssertNil(try snapshotStore.load())
+        XCTAssertThrowsError(try secrets.data(account: CanvasConfiguration.tokenAccount))
+        XCTAssertThrowsError(try configurationStore.load())
+    }
 }
 #endif

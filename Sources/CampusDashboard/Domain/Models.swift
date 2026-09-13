@@ -15,7 +15,7 @@ enum SourceKind: String, CaseIterable, Identifiable, Codable, Sendable {
     }
 }
 
-enum HealthLevel: String, Sendable {
+enum HealthLevel: String, Codable, Sendable {
     case healthy
     case warning
     case unavailable
@@ -29,7 +29,7 @@ enum HealthLevel: String, Sendable {
     }
 }
 
-struct SourceHealth: Identifiable, Equatable, Sendable {
+struct SourceHealth: Identifiable, Equatable, Codable, Sendable {
     let id: UUID
     let source: SourceKind
     let level: HealthLevel
@@ -37,7 +37,7 @@ struct SourceHealth: Identifiable, Equatable, Sendable {
     let lastSuccessfulSync: Date?
 }
 
-struct Course: Identifiable, Equatable, Sendable {
+struct Course: Identifiable, Equatable, Codable, Sendable {
     let id: UUID
     let sourceAccountID: String
     let sourceObjectID: String
@@ -54,7 +54,7 @@ struct Course: Identifiable, Equatable, Sendable {
     }
 }
 
-struct CourseMeeting: Identifiable, Equatable, Sendable {
+struct CourseMeeting: Identifiable, Equatable, Codable, Sendable {
     let id: UUID
     let courseID: UUID
     let title: String
@@ -74,19 +74,19 @@ struct CourseMeeting: Identifiable, Equatable, Sendable {
     }
 }
 
-enum TaskKind: String, CaseIterable, Sendable {
+enum TaskKind: String, CaseIterable, Codable, Sendable {
     case assignment = "Assignment"
     case quiz = "Quiz"
     case reading = "Reading"
 }
 
-enum TaskPriority: String, CaseIterable, Sendable {
+enum TaskPriority: String, CaseIterable, Codable, Sendable {
     case high = "High"
     case medium = "Medium"
     case low = "Low"
 }
 
-struct LearningTask: Identifiable, Equatable, Sendable {
+struct LearningTask: Identifiable, Equatable, Codable, Sendable {
     let id: UUID
     let sourceAccountID: String
     let sourceObjectID: String
@@ -120,7 +120,7 @@ struct LearningTask: Identifiable, Equatable, Sendable {
     var appearsInNormalTaskList: Bool { !isPlaceholder || placeholderAlwaysShow }
 }
 
-struct Announcement: Identifiable, Equatable, Sendable {
+struct Announcement: Identifiable, Equatable, Codable, Sendable {
     let id: UUID
     let sourceObjectID: String
     let courseID: UUID
@@ -139,14 +139,14 @@ struct Announcement: Identifiable, Equatable, Sendable {
     }
 }
 
-enum ConfirmationKind: String, CaseIterable, Sendable {
+enum ConfirmationKind: String, CaseIterable, Codable, Sendable {
     case inferredDate = "Inferred date"
     case normalizedType = "Type suggestion"
     case relatedItem = "Related item"
     case actionItem = "Action item"
 }
 
-struct ConfirmationCandidate: Identifiable, Equatable, Sendable {
+struct ConfirmationCandidate: Identifiable, Equatable, Codable, Sendable {
     let id: UUID
     let courseID: UUID
     let kind: ConfirmationKind
@@ -156,7 +156,7 @@ struct ConfirmationCandidate: Identifiable, Equatable, Sendable {
     let rationale: String
 }
 
-struct DashboardSnapshot: Equatable, Sendable {
+struct DashboardSnapshot: Equatable, Codable, Sendable {
     var sourceHealth: [SourceHealth]
     var courses: [Course]
     var meetings: [CourseMeeting]

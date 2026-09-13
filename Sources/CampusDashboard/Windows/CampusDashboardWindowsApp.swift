@@ -207,14 +207,14 @@ private struct SettingsView: View {
                 Button("Forget Canvas") {
                     state.forgetCanvas()
                 }
-                .disabled(state.isSyncing || !state.hasSavedCanvasToken)
+                .disabled(state.isSyncing || (!state.hasSavedCanvasToken && state.isShowingPreview))
             }
 
             Text(state.statusMessage)
                 .font(.subheadline)
             ContentRow(
                 title: "Windows privacy boundary",
-                detail: "Token: Windows Credential Manager · Data: read-only Canvas · No iCloud, Apple Calendar, Outlook, or external calendar writes"
+                detail: "Token: Windows Credential Manager · Offline data: local app folder · Read-only Canvas · No iCloud, Apple Calendar, Outlook, or external calendar writes"
             )
             ForEach(state.snapshot.sourceHealth, id: \.id) { source in
                 ContentRow(title: source.source.rawValue, detail: source.detail)

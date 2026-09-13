@@ -31,6 +31,7 @@ let package = Package(
                 "Connectors/Canvas/CanvasSnapshotLoader.swift",
                 "Windows/WindowsCredentialSecretStore.swift",
                 "Windows/WindowsCanvasSnapshotMapper.swift",
+                "Windows/WindowsSnapshotStore.swift",
                 "Windows/WindowsDashboardState.swift",
                 "Windows/CampusDashboardWindowsApp.swift"
             ],
