@@ -1,0 +1,83 @@
+# Windows preview testing
+
+This guide is for the controlled, unsigned Campus Dashboard Windows 11 x64 preview. It has no iCloud, Apple Calendar, Outlook, Microsoft Graph, Google Calendar, CalDAV, or other external-calendar integration. Canvas access is read-only. Do not share access tokens, school content, screenshots containing private data, or the local data directory when reporting a defect.
+
+## Download and verify
+
+Download both files attached to the matching GitHub prerelease:
+
+- `CampusDashboard-Windows-0.1.0-portable-x64.zip`
+- `SHA256SUMS.txt`
+
+In PowerShell, from the download directory, run:
+
+```powershell
+Get-FileHash .\CampusDashboard-Windows-0.1.0-portable-x64.zip -Algorithm SHA256
+Get-Content .\SHA256SUMS.txt
+```
+
+The two lowercase or uppercase hash values must match exactly. Stop if they do not match.
+
+## First launch
+
+1. Extract the entire ZIP to a new directory. Do not move only `CampusDashboard.exe`; its DLLs must remain beside it.
+2. If Windows reports that Windows App Runtime is missing, run the bundled `WindowsAppRuntimeInstaller.exe` once, then launch the app again.
+3. Run `CampusDashboard.exe`. This preview is unsigned, so Windows can display an unknown-publisher warning. Confirm only if the ZIP came from the project's GitHub release and its hash matched.
+4. Before Canvas setup, verify that the app labels its sample content as preview data.
+
+The app does not require Swift, Visual Studio, or other developer tools on the test computer.
+
+## Canvas read-only setup
+
+In Settings, enter only an authorized Canvas HTTPS base URL and a personal access token. The app stores the token in Windows Credential Manager, not in the snapshot or ordinary configuration. Synchronization performs read-only Canvas requests.
+
+After a successful refresh:
+
+1. Verify that Today, Tasks, and Announcements show expected data without exposing it in a defect report.
+2. Close the app completely and reopen it.
+3. Verify that the last successful normalized snapshot is still available and the token does not need to be entered again.
+4. Use **Forget Canvas** only when testing removal. It removes the Canvas credential, saved URL, and offline snapshot owned by this Windows app.
+
+Never paste a token into GitHub, chat, screenshots, logs, terminal commands, or a bug report.
+
+## Data, upgrade, and uninstall
+
+The normalized offline snapshot is stored at:
+
+```text
+%LOCALAPPDATA%\CampusDashboard\snapshot-v1.json
+```
+
+Credentials are stored separately in Windows Credential Manager. A portable upgrade is performed by extracting a newer verified ZIP into a new directory, closing the old app, and launching the new executable. Do not overwrite files while the app is running. The local snapshot and credential remain available because they are not stored inside the extracted application directory.
+
+Deleting the extracted application directory uninstalls the portable executable but deliberately leaves local data and credentials intact. To remove app-owned Canvas data first, use **Forget Canvas** in Settings. If the executable no longer starts, remove the `CampusDashboard` entry from Windows Credential Manager and delete `%LOCALAPPDATA%\CampusDashboard` manually. Do not remove unrelated credentials or directories.
+
+## Real-machine smoke matrix
+
+Record only pass/fail and non-sensitive error categories for each item:
+
+- Launch `CampusDashboard.exe` from the fully extracted directory on Windows 11 x64.
+- Open Today, Schedule, Tasks, Announcements, Needs Review, and Settings.
+- Switch between English and Simplified Chinese, restart, and verify that the selection persists.
+- Verify Today shows only eligible foreground in-app reminders and clearly states that the beta has no background reminder service.
+- Test keyboard traversal and activation without requiring a mouse.
+- Test 100%, 125%, and 150% Windows display scaling for clipped or unreachable controls.
+- Configure Canvas, run a read-only refresh, restart, and confirm that the offline snapshot and credential behavior are correct.
+- Disconnect the network, reopen the app, and verify that cached content remains visible with a clear offline/error state.
+- Use **Forget Canvas**, restart, and verify that the token, URL, and snapshot are no longer available.
+- Confirm that the Windows app contains no iCloud or external-calendar settings or authorization request.
+
+SIweb, background refresh, and native Windows notifications are not included in this preview and must not be reported as passing.
+
+## Privacy-safe defect report
+
+Include:
+
+- release tag and ZIP SHA-256;
+- Windows version and x64 architecture;
+- display scaling and selected language;
+- the smoke-matrix step that failed;
+- whether the failure occurred before setup, during read-only refresh, after restart, or offline;
+- exact non-sensitive error category and reproducible actions.
+
+Exclude tokens, cookies, URLs containing tenant or account details, course names, task titles, announcement text, raw API responses, the snapshot file, Credential Manager contents, and screenshots containing school data. Use synthetic preview data for screenshots whenever possible.
