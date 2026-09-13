@@ -32,13 +32,14 @@ jobs:
           branch: swift-6.1-release
           tag: 6.1-RELEASE
 
-      - name: Cache Swift build products
-        uses: actions/cache@v4
+      - name: Restore Swift build products
+        id: swift-cache
+        uses: actions/cache/restore@v4
         with:
           path: .build
-          key: windows-2022-swift-6.1-v1-${{ hashFiles('Package.swift', 'Bundler.toml') }}
+          key: windows-2022-swift-6.1-v2-${{ hashFiles('Package.swift', 'Package.resolved', 'Bundler.toml', 'Sources/**/*.swift', 'Tests/**/*.swift') }}
           restore-keys: |
-            windows-2022-swift-6.1-v1-
+            windows-2022-swift-6.1-v2-
 
       - name: Show Swift version
         run: swift --version
@@ -67,7 +68,7 @@ jobs:
           "WINDOWS_MT_EXE=$($manifestTool.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "WINDOWS_DUMPBIN_EXE=$($dumpbinTool.Source)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Build portable bundle
+      - name: Build Windows packaging tool
         run: |
           $ErrorActionPreference = "Stop"
           $bundlerSource = Join-Path $env:RUNNER_TEMP "swift-bundler"
@@ -86,14 +87,45 @@ jobs:
           }
           [System.IO.File]::WriteAllText($windowsBundler, $bundlerSourceText.Replace($oldPathLookup, $newPathLookup))
 
+          # --skip-build should reuse this workflow's tested release product,
+          # but project dependencies such as Windows App Runtime still need
+          # to be prepared by swift-bundler.
+          $bundleCommand = Join-Path $bundlerSource "Sources\SwiftBundler\Commands\BundleCommand.swift"
+          $bundleCommandText = [System.IO.File]::ReadAllText($bundleCommand)
+          $oldDependencyDryRun = 'dryRun: skipBuild || arguments.skipDependencies'
+          $newDependencyDryRun = 'dryRun: arguments.skipDependencies'
+          if (-not $bundleCommandText.Contains($oldDependencyDryRun)) {
+            throw "Pinned swift-bundler dependency preparation changed unexpectedly"
+          }
+          [System.IO.File]::WriteAllText($bundleCommand, $bundleCommandText.Replace($oldDependencyDryRun, $newDependencyDryRun))
+
           $env:SBUN_NO_SCHEMA_GEN = "1"
           $bundlerScratch = Join-Path (Resolve-Path ".build") "swift-bundler-tool"
-          swift build -c release --package-path $bundlerSource --scratch-path $bundlerScratch --product swift-bundler
           $bundlerBin = swift build -c release --package-path $bundlerSource --scratch-path $bundlerScratch --show-bin-path
+          $bundlerExecutable = Join-Path $bundlerBin "swift-bundler.exe"
+          if (-not (Test-Path $bundlerExecutable -PathType Leaf)) {
+            swift build -c release --package-path $bundlerSource --scratch-path $bundlerScratch --product swift-bundler
+          }
+          if (-not (Test-Path $bundlerExecutable -PathType Leaf)) {
+            throw "swift-bundler executable was not produced"
+          }
           $swiftExecutable = (Get-Command swift -ErrorAction Stop).Source
           $swiftBin = Split-Path $swiftExecutable -Parent
           $swiftUSR = Split-Path $swiftBin -Parent
           $swiftToolchain = Split-Path $swiftUSR -Parent
+          "SWIFT_BUNDLER_EXE=$bundlerExecutable" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "SWIFT_TOOLCHAIN=$swiftToolchain" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Save Swift build products
+        if: steps.swift-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: windows-2022-swift-6.1-v2-${{ hashFiles('Package.swift', 'Package.resolved', 'Bundler.toml', 'Sources/**/*.swift', 'Tests/**/*.swift') }}
+
+      - name: Build portable bundle
+        run: |
+          $ErrorActionPreference = "Stop"
           if (-not (Test-Path $env:WINDOWS_MT_EXE -PathType Leaf)) {
             throw "Resolved Windows SDK Manifest Tool is unavailable"
           }
@@ -111,8 +143,7 @@ jobs:
           if ($LASTEXITCODE -ne 0 -or -not (Test-Path $productsDirectory -PathType Container)) {
             throw "Unable to resolve the existing Windows release products directory"
           }
-          $bundlerExecutable = Join-Path $bundlerBin "swift-bundler.exe"
-          & $bundlerExecutable bundle CampusDashboard --bundler windowsGeneric --toolchain $swiftToolchain -c release --skip-build --products-directory $productsDirectory
+          & $env:SWIFT_BUNDLER_EXE bundle CampusDashboard --bundler windowsGeneric --toolchain $env:SWIFT_TOOLCHAIN -c release --skip-build --products-directory $productsDirectory
           $bundlerExitCode = $LASTEXITCODE
           Remove-Item $mtWrapper, $dumpbinWrapper -Force
           if ($bundlerExitCode -ne 0) {
