@@ -63,6 +63,7 @@ jobs:
             throw "Windows SDK Manifest Tool (mt.exe) was not found under $windowsKitsBin"
           }
           $manifestTool.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          "WINDOWS_MT_EXE=$($manifestTool.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Build portable bundle
         run: |
@@ -78,10 +79,21 @@ jobs:
           $swiftBin = Split-Path $swiftExecutable -Parent
           $swiftUSR = Split-Path $swiftBin -Parent
           $swiftToolchain = Split-Path $swiftUSR -Parent
+          if (-not (Test-Path $env:WINDOWS_MT_EXE -PathType Leaf)) {
+            throw "Resolved Windows SDK Manifest Tool is unavailable"
+          }
+
+          # swift-bundler invokes `cmd.exe /c mt`; the VS environment can expose
+          # a differently-cased Path variable to Foundation. A current-directory
+          # wrapper gives that child process an exact, ephemeral SDK tool target.
+          $mtWrapper = Join-Path (Resolve-Path ".") "mt.cmd"
+          "@`"$env:WINDOWS_MT_EXE`" %*" | Set-Content -Path $mtWrapper -Encoding ascii
           $bundlerExecutable = Join-Path $bundlerBin "swift-bundler.exe"
           & $bundlerExecutable bundle CampusDashboard --bundler windowsGeneric --toolchain $swiftToolchain -c release
-          if ($LASTEXITCODE -ne 0) {
-            throw "swift-bundler failed with exit code $LASTEXITCODE"
+          $bundlerExitCode = $LASTEXITCODE
+          Remove-Item $mtWrapper -Force
+          if ($bundlerExitCode -ne 0) {
+            throw "swift-bundler failed with exit code $bundlerExitCode"
           }
 
           $bundleRoot = ".build/bundler/apps/CampusDashboard"
