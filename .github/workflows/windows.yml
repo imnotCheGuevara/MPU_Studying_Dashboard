@@ -52,7 +52,7 @@ jobs:
       - name: Run Windows tests
         run: swift test -c release
 
-      - name: Add Windows SDK tools to PATH
+      - name: Resolve Windows packaging tools
         run: |
           $windowsKitsBin = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bin"
           $manifestTool = Get-ChildItem $windowsKitsBin -Filter mt.exe -Recurse -File |
@@ -62,8 +62,10 @@ jobs:
           if (-not $manifestTool) {
             throw "Windows SDK Manifest Tool (mt.exe) was not found under $windowsKitsBin"
           }
+          $dumpbinTool = Get-Command dumpbin.exe -ErrorAction Stop
           $manifestTool.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           "WINDOWS_MT_EXE=$($manifestTool.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "WINDOWS_DUMPBIN_EXE=$($dumpbinTool.Source)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Build portable bundle
         run: |
@@ -71,6 +73,19 @@ jobs:
           $bundlerSource = Join-Path $env:RUNNER_TEMP "swift-bundler"
           git clone --filter=blob:none https://github.com/moreSwift/swift-bundler.git $bundlerSource
           git -C $bundlerSource checkout 182fbd7f50a3c2ac1efd69659aac4f55605ca718
+
+          # The pinned bundler reads only the title-cased Windows `Path` key
+          # while GitHub Actions can expose it as `PATH`. Keep the upstream fix
+          # local to this deterministic CI checkout.
+          $windowsBundler = Join-Path $bundlerSource "Sources\SwiftBundler\Bundler\GenericWindowsBundler.swift"
+          $bundlerSourceText = [System.IO.File]::ReadAllText($windowsBundler)
+          $oldPathLookup = 'let pathVar = ProcessInfo.processInfo.environment["Path"] ?? ""'
+          $newPathLookup = 'let pathVar = ProcessInfo.processInfo.environment["Path"] ?? ProcessInfo.processInfo.environment["PATH"] ?? ""'
+          if (-not $bundlerSourceText.Contains($oldPathLookup)) {
+            throw "Pinned swift-bundler PATH lookup changed unexpectedly"
+          }
+          [System.IO.File]::WriteAllText($windowsBundler, $bundlerSourceText.Replace($oldPathLookup, $newPathLookup))
+
           $env:SBUN_NO_SCHEMA_GEN = "1"
           $bundlerScratch = Join-Path (Resolve-Path ".build") "swift-bundler-tool"
           swift build -c release --package-path $bundlerSource --scratch-path $bundlerScratch --product swift-bundler
@@ -82,16 +97,24 @@ jobs:
           if (-not (Test-Path $env:WINDOWS_MT_EXE -PathType Leaf)) {
             throw "Resolved Windows SDK Manifest Tool is unavailable"
           }
+          if (-not (Test-Path $env:WINDOWS_DUMPBIN_EXE -PathType Leaf)) {
+            throw "Resolved Visual Studio dumpbin tool is unavailable"
+          }
 
-          # swift-bundler invokes `cmd.exe /c mt`; the VS environment can expose
-          # a differently-cased Path variable to Foundation. A current-directory
-          # wrapper gives that child process an exact, ephemeral SDK tool target.
+          # swift-bundler invokes these tools through cmd.exe. Exact ephemeral
+          # wrappers avoid depending on Foundation's environment-key casing.
           $mtWrapper = Join-Path (Resolve-Path ".") "mt.cmd"
+          $dumpbinWrapper = Join-Path (Resolve-Path ".") "dumpbin.cmd"
           "@`"$env:WINDOWS_MT_EXE`" %*" | Set-Content -Path $mtWrapper -Encoding ascii
+          "@`"$env:WINDOWS_DUMPBIN_EXE`" %*" | Set-Content -Path $dumpbinWrapper -Encoding ascii
+          $productsDirectory = swift build -c release --show-bin-path
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path $productsDirectory -PathType Container)) {
+            throw "Unable to resolve the existing Windows release products directory"
+          }
           $bundlerExecutable = Join-Path $bundlerBin "swift-bundler.exe"
-          & $bundlerExecutable bundle CampusDashboard --bundler windowsGeneric --toolchain $swiftToolchain -c release
+          & $bundlerExecutable bundle CampusDashboard --bundler windowsGeneric --toolchain $swiftToolchain -c release --skip-build --products-directory $productsDirectory
           $bundlerExitCode = $LASTEXITCODE
-          Remove-Item $mtWrapper -Force
+          Remove-Item $mtWrapper, $dumpbinWrapper -Force
           if ($bundlerExitCode -ne 0) {
             throw "swift-bundler failed with exit code $bundlerExitCode"
           }
