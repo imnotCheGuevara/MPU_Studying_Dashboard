@@ -1,10 +1,10 @@
 # Campus Dashboard current context
 
-Updated: 2026-09-12 Asia/Macau.
+Updated: 2026-09-13 Asia/Macau.
 
 ## Active state
 
-- **Stage 16W: ACTIVE — USER APPROVED 2026-09-12.** The user approved all recommended decisions in `docs/windows-adaptation-review.md`: Windows 11 x64, portable ZIP first, in-app reminders for beta, and no automatic macOS data or credential migration. Implementation, CI repair, controlled-test packaging, and prerelease publishing may continue within the stage boundaries.
+- **Stage 16W: ACTIVE / PARTIAL — USER APPROVED 2026-09-12.** The Windows Server 2022 release build, tests, portable packaging, checksum, and artifact upload passed in run `34755547052`; prerelease `v0.1.0-windows-preview.1` is published for controlled testing. Real Windows-machine acceptance and the deferred daily-use features remain mandatory before `PASS`.
 - **Stage 15T: ACCEPTED** at `2578312`. The information-noise repair is merged and independently verified.
 - **Stage 15S: ACCEPTED.** A real cancellation was previewed read-only against one exact current SIweb meeting, confirmed only after explicit action-time approval, and restored only after a separate undo approval. Audit, binding, and outbox evidence remained exact and scoped.
 - **Stage 15R / 15: ACCEPTED.** The signed macOS `0.3.0 (4)` candidate passed live Canvas and SIweb reads, provider-boundary checks, UI evidence, automatic-cadence evidence, the dedicated-calendar lifecycle, and the post-Outlook-removal automated/build/signature gates.
@@ -14,7 +14,7 @@ Updated: 2026-09-12 Asia/Macau.
 
 ## Git and implementation
 
-- Branch `codex/windows-port`; accepted macOS product baseline on `main`: `776b2ef` (`Remove Outlook integration and finalize dashboard updates`). The branch contains pre-approval Windows draft commits `101e014` and `40f30f0`; their implementation is now authorized but must be revalidated after approval before acceptance credit.
+- Branch `codex/windows-port`; current automated-delivery commit `4ac2f5c`; accepted macOS product baseline on `main`: `776b2ef` (`Remove Outlook integration and finalize dashboard updates`). The post-approval Windows runner revalidated the release executable, tests, runtime dependency preparation, portable package, and artifact upload.
 - Frozen signed macOS candidate: version `0.3.0 (4)`, executable SHA-256 `d5ee7a4f549bf96cc5c14044351df8e19d3cc035259158ac9e2cea59d174d682`, bundle identifier `com.campusdashboard.desktop`, CDHash `71028af713336555023cab26bed328003ac78157`, ad-hoc signature. After Outlook removal it passes 239 tests across 20 suites, production build, app verification, strict signing, targeted safety scans, and signed-app UI checks. Today is a focused current-day summary; Schedule remains the full calendar grid.
 - Announcements is the complete source feed. **待确认 / Needs Review** contains only unresolved actionable decisions; provider-unavailable and `other` results remain locally correctable, and resolved items leave the queue without disappearing from Announcements.
 - Deterministically empty Canvas assignment shells remain in SQLite under stable identity, are collapsed by course, and are excluded from normal task surfaces, AI, Calendar, and notifications. A due date, meaningful instructions, attachment, quiz/external activity, meaningful submission route, or explicit offline/reading/preparation requirement reactivates the same item. Evidence uncertainty fails open to visibility. The local always-show override persists.
@@ -38,11 +38,9 @@ Updated: 2026-09-12 Asia/Macau.
 
 ## Next gated work
 
-1. Repair and pass the portable Windows packaging workflow on the pinned compatible runner.
-2. Publish a versioned GitHub prerelease ZIP and record its SHA-256.
-3. Ask the user or their friend to complete the real Windows launch, restart, credential, Canvas read-only sync, navigation, scaling, keyboard, and privacy smoke matrix.
-4. Return defects to Stage 16W and continue the remaining SIweb, persistence, reminders, localization, and accessibility work before daily-use acceptance.
-5. Keep Stage 10 paused at 0/7 until the user separately asks to start the trial.
+1. Ask the user or their friend to test prerelease `v0.1.0-windows-preview.1` and complete the real Windows launch, restart, credential, Canvas read-only sync, navigation, scaling, keyboard, and privacy smoke matrix.
+2. Return defects to Stage 16W and continue the remaining SIweb, persistence, reminders, localization, and accessibility work before daily-use acceptance.
+3. Keep Stage 10 paused at 0/7 until the user separately asks to start the trial.
 
 Stage 16W work is authorized only within the approved Windows plan. No real EventKit mutation is authorized without a fresh exact preview and action-time approval.
 
