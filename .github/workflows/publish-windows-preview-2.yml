@@ -40,6 +40,7 @@ jobs:
         with:
           artifact-ids: ${{ env.ARTIFACT_ID }}
           github-token: ${{ github.token }}
+          run-id: "34761647634"
           merge-multiple: true
           path: release-artifact
 
