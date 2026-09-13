@@ -78,11 +78,6 @@ jobs:
           $swiftBin = Split-Path $swiftExecutable -Parent
           $swiftUSR = Split-Path $swiftBin -Parent
           $swiftToolchain = Split-Path $swiftUSR -Parent
-          & "$env:SystemRoot\System32\cmd.exe" /c "where mt"
-          if ($LASTEXITCODE -ne 0) {
-            throw "mt.exe is not available to child cmd.exe processes"
-          }
-
           $bundlerExecutable = Join-Path $bundlerBin "swift-bundler.exe"
           & $bundlerExecutable bundle CampusDashboard --bundler windowsGeneric --toolchain $swiftToolchain -c release
           if ($LASTEXITCODE -ne 0) {
