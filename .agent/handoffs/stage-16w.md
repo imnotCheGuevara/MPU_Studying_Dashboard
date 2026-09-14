@@ -69,6 +69,10 @@ GitHub release draft id `388016887` is named `Campus Dashboard Windows Preview 2
 
 The draft body explicitly lists the included learner flow, Canvas read-only and Credential Manager boundaries, restart-safe snapshot, foreground-only reminders, absence of iCloud and every substitute external calendar, privacy-safe testing instructions, and the still-deferred SIweb, DeepSeek, background refresh, native Windows notifications, and signed installer. Publishing the draft is a public GitHub action and is waiting for the user's immediate action-time confirmation.
 
+The privacy-safe friend-feedback route was added in `5e4c4ba` and its branch-independent prefilled GitHub issue link was corrected in `709cc90`. Live browser verification confirmed that the link opens GitHub's new-issue page with the bilingual title, privacy warning, release/checksum/system/reproduction fields, and sensitive-data checkboxes already populated; no issue was submitted during verification.
+
+Windows Server 2022 run [34799244166](https://github.com/imnotCheGuevara/MPU_Studying_Dashboard/actions/runs/34799244166) also completed successfully for feedback-form commit `5e4c4badf5ab2ea422b7e4281407e8c3cf1031a2` in 51 minutes 27 seconds. Release compilation, Windows tests, packaging-tool resolution/build, portable bundling, and artifact upload passed. The uploaded artifact is `CampusDashboard-Windows-0.1.0`, artifact id `10330934192`, size `114503097` bytes, with GitHub Actions wrapper digest `sha256:816e8d5f53d21ec594c84f63763d49b066f1baee5034a5751c426b290b837540`. A non-blocking build-cache save warning and GitHub's Node.js action deprecation notice were emitted. Three immediate local download attempts failed at GitHub's `productionresultssa6.blob.core.windows.net` endpoint, so this redundant run's wrapper and inner ZIP were not locally re-inspected; the separately selected Preview 2 artifact remains the checksum- and archive-verified release candidate described above.
+
 ## Remaining acceptance work
 
 1. After immediate user confirmation, publish the already verified Preview 2 draft without changing its tested assets or stated limitations.
