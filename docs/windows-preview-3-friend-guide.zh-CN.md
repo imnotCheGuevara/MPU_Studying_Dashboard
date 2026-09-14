@@ -81,7 +81,7 @@ Cookie 只应输入应用的安全字段，绝不能发送到 GitHub、聊天、
 
 ## 7. 反馈失败
 
-在项目 GitHub Issues 提交反馈时，只提供：
+先打开[隐私安全的 Windows Preview 反馈入口](https://github.com/imnotCheGuevara/MPU_Studying_Dashboard/blob/codex/windows-port/docs/windows-preview-testing.md#privacy-safe-defect-report)，再使用其中已预填的双语报告链接。提交时只提供：
 
 - 版本 `v0.1.0-windows-preview.3`；
 - ZIP SHA-256；
