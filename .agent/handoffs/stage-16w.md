@@ -2,7 +2,7 @@
 
 Status: `PARTIAL`
 
-Updated: 2026-09-13 Asia/Macau
+Updated: 2026-09-14 Asia/Macau
 
 ## Main-conversation approval — 2026-09-12
 
@@ -56,11 +56,22 @@ The downloaded artifact wrapper and inner portable ZIP both passed archive integ
 
 GitHub prerelease [v0.1.0-windows-preview.1](https://github.com/imnotCheGuevara/MPU_Studying_Dashboard/releases/tag/v0.1.0-windows-preview.1) is published with the portable ZIP and `SHA256SUMS.txt`. It is explicitly labeled an unsigned controlled-test build and documents installation, privacy-safe defect reporting, the real-machine smoke matrix, and deferred functionality. No live Canvas, SIweb, DeepSeek, Calendar, or notification operation was performed during CI or artifact inspection.
 
-Post-preview implementation commits add restart-safe Canvas snapshot persistence (`6d878ef`), complete English/Simplified Chinese UI selection and copy (`b333e86`), and safe foreground in-app reminders (`4c9aab6`). The documentation commit `7a3c966` adds `docs/windows-preview-testing.md` with checksum, setup, upgrade, uninstall, data-location, privacy, diagnostic, and physical-machine test instructions. Windows Server 2022 run [34761647634](https://github.com/imnotCheGuevara/MPU_Studying_Dashboard/actions/runs/34761647634) is still running for the latest functional commit; it is not yet acceptance evidence. Preview 2 must use and verify that run's artifact rather than reusing the older binary.
+Post-preview implementation commits add restart-safe Canvas snapshot persistence (`6d878ef`), complete English/Simplified Chinese UI selection and copy (`b333e86`), and safe foreground in-app reminders (`4c9aab6`). The documentation commit `7a3c966` adds `docs/windows-preview-testing.md` with checksum, setup, upgrade, uninstall, data-location, privacy, diagnostic, and physical-machine test instructions.
+
+Windows Server 2022 run [34761647634](https://github.com/imnotCheGuevara/MPU_Studying_Dashboard/actions/runs/34761647634) completed successfully for functional commit `4c9aab69900148ad08804ef71e42eaca0eef3dd7` in 36 minutes 39 seconds. Dependency resolution, Release compilation, Windows tests, packaging-tool resolution, build-cache preparation, portable bundling, and artifact upload all passed. Its unexpired source artifact is `CampusDashboard-Windows-0.1.0`, artifact id `10319558042`, size `114502709` bytes, with GitHub Actions wrapper digest `sha256:a0dbcf06b9c7ff18255b1a4cdd4e8b00920c5db71549d15b1dbc19d8f61e69a5`.
+
+The automated Preview 2 draft workflow was added in `a7b975c` and corrected in `48fa3de` to select that exact artifact by both run id and artifact id. Successful publishing workflow run [34779276068](https://github.com/imnotCheGuevara/MPU_Studying_Dashboard/actions/runs/34779276068) verified the source commit and artifact metadata, downloaded the exact Windows artifact, passed `sha256sum --check`, passed ZIP integrity and required-file checks, rejected prohibited external-calendar filenames, produced release notes, and created the prerelease draft. The changes from the tested functional commit through `48fa3de` are limited to this handoff, the release workflow, `README.md`, and `docs/windows-preview-testing.md`; no later product source is substituted into the tested package.
+
+GitHub release draft id `388016887` is named `Campus Dashboard Windows Preview 2`, reserves tag `v0.1.0-windows-preview.2`, targets `48fa3def92cdc1c9b3cf3ff3923c56fb6e31a1d1`, and remains `draft: true`, `prerelease: true`, with no publication timestamp. Its two uploaded assets are:
+
+- `CampusDashboard-Windows-0.1.0-portable-x64.zip`: asset id `561833060`, `114920702` bytes, GitHub release-asset digest `sha256:43f1776aa1f9f54a8a9fd4cf1801794007dbddad54967f01629304950c1cce75`;
+- `SHA256SUMS.txt`: asset id `561833065`, `114` bytes, GitHub release-asset digest `sha256:df4259e503cf10897edf1990a6300776fec3e0a0c4a4d42a8d80973f2b10d29b`.
+
+The draft body explicitly lists the included learner flow, Canvas read-only and Credential Manager boundaries, restart-safe snapshot, foreground-only reminders, absence of iCloud and every substitute external calendar, privacy-safe testing instructions, and the still-deferred SIweb, DeepSeek, background refresh, native Windows notifications, and signed installer. Publishing the draft is a public GitHub action and is waiting for the user's immediate action-time confirmation.
 
 ## Remaining acceptance work
 
-1. Wait for run `34761647634`, download and inspect its artifact, verify the inner ZIP and SHA-256, then publish Preview 2 with the current limitations stated explicitly.
+1. After immediate user confirmation, publish the already verified Preview 2 draft without changing its tested assets or stated limitations.
 2. Pass the user's real Windows-machine launch, Canvas source, restart, credential, navigation, scaling, keyboard, localization, foreground-reminder, offline, clear-data, and privacy smoke using Preview 2.
 3. Reuse compatible SIweb, AI, full persistence, native/background reminders, and presentation/accessibility behavior behind explicit platform boundaries before daily-use acceptance.
 
