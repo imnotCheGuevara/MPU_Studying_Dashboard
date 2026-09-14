@@ -1,5 +1,9 @@
 import Foundation
 
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+
 enum SIwebErrorCategory: String, Sendable {
     case configuration
     case unsafeRoute

@@ -1,5 +1,9 @@
 import Foundation
+#if canImport(CryptoKit)
 import CryptoKit
+#elseif canImport(Crypto)
+import Crypto
+#endif
 import CoreFoundation
 
 struct SIwebParsedPage: Equatable, Sendable {

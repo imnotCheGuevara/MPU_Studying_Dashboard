@@ -86,6 +86,28 @@ struct WindowsCopy: Sendable {
         )
     }
 
+    var siwebSyncingStatus: String {
+        text("Syncing SIweb timetable read-only data…", "正在同步 SIweb 课程表只读数据……")
+    }
+
+    func siwebSyncedStatus(meetings: Int) -> String {
+        text(
+            "SIweb synced and saved for offline use: \(meetings) meetings.",
+            "SIweb 已同步并保存供离线使用：\(meetings) 节课。"
+        )
+    }
+
+    var siwebSnapshotSaveFailedStatus: String {
+        text(
+            "SIweb synced, but its offline copy could not be saved.",
+            "SIweb 已同步，但无法保存离线副本。"
+        )
+    }
+
+    func siwebSyncFailedStatus(_ detail: String) -> String {
+        text("SIweb sync failed: \(detail)", "SIweb 同步失败：\(detail)")
+    }
+
     func syncFailedStatus(_ detail: String) -> String {
         text("Canvas sync failed: \(detail)", "Canvas 同步失败：\(detail)")
     }
@@ -101,6 +123,34 @@ struct WindowsCopy: Sendable {
         text(
             "Canvas credentials and offline data removed. Preview data is active.",
             "Canvas 凭据和离线数据已删除，当前显示预览数据。"
+        )
+    }
+
+    var canvasRemovedSIwebRetainedStatus: String {
+        text(
+            "Canvas credentials and data removed. Saved SIweb timetable retained.",
+            "Canvas 凭据和数据已删除，已保存的 SIweb 课程表继续保留。"
+        )
+    }
+
+    var siwebRemovalPartialStatus: String {
+        text(
+            "Some saved SIweb data could not be removed. Close the app and try again.",
+            "部分 SIweb 数据无法删除。请关闭应用后重试。"
+        )
+    }
+
+    var siwebRemovedStatus: String {
+        text(
+            "SIweb session and offline timetable removed. Preview data is active.",
+            "SIweb 会话和离线课程表已删除，当前显示预览数据。"
+        )
+    }
+
+    var siwebRemovedCanvasRetainedStatus: String {
+        text(
+            "SIweb session and timetable removed. Saved Canvas data retained.",
+            "SIweb 会话和课程表已删除，已保存的 Canvas 数据继续保留。"
         )
     }
 

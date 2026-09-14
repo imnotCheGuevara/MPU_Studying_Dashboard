@@ -38,7 +38,7 @@ public struct CampusDashboardWindowsRootView: View {
                     .emphasized()
                 Text(state.isShowingPreview
                      ? state.copy.text("Windows · preview data", "Windows · 预览数据")
-                     : state.copy.text("Windows · Canvas connected", "Windows · Canvas 已连接"))
+                     : state.copy.text("Windows · saved source data", "Windows · 已保存来源数据"))
                     .font(.caption)
                 Divider()
                 List(WindowsSection.allCases, selection: $selectedSection) { section in
@@ -152,8 +152,8 @@ private struct SchedulePreview: View {
                 ContentRow(
                     title: copy.text("No timetable data on Windows yet", "Windows 版暂时没有课程表数据"),
                     detail: copy.text(
-                        "SIweb sign-in is intentionally disabled until a safe Windows adapter is available.",
-                        "安全的 Windows 适配器完成前，SIweb 登录功能保持关闭。"
+                        "Connect the SIweb read-only beta adapter in Settings to load the timetable.",
+                        "可在设置中连接 SIweb 只读测试适配器，以加载课程表。"
                     )
                 )
             } else {
@@ -226,6 +226,7 @@ private struct NeedsReviewPreview: View {
 
 private struct SettingsView: View {
     let state: WindowsDashboardState
+    @Environment(\.openURL) private var openURL
 
     private var baseURLBinding: Binding<String> {
         Binding { state.canvasBaseURL } set: { state.canvasBaseURL = $0 }
@@ -235,11 +236,15 @@ private struct SettingsView: View {
         Binding { state.canvasToken } set: { state.canvasToken = $0 }
     }
 
+    private var siwebSessionBinding: Binding<String> {
+        Binding { state.siwebSession } set: { state.siwebSession = $0 }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             ScreenTitle(
                 state.copy.text("Settings", "设置"),
-                subtitle: state.copy.text("Connect Canvas with read-only access", "以只读方式连接 Canvas")
+                subtitle: state.copy.text("Connect read-only school sources", "以只读方式连接学校数据来源")
             )
             Text(state.copy.text("Language", "语言"))
                 .font(.headline)
@@ -275,14 +280,44 @@ private struct SettingsView: View {
                 }
                 .disabled(state.isSyncing || (!state.hasSavedCanvasToken && state.isShowingPreview))
             }
+            Divider()
+            Text(state.copy.text("SIweb timetable · advanced beta", "SIweb 课程表 · 高级测试版"))
+                .font(.headline)
+            Text(state.copy.text(
+                "1. Open SIweb and sign in normally. 2. In browser Developer Tools > Network, reload the timetable page and select time_stud.asp. 3. Under Request Headers, copy only the value after Cookie:. Never paste it into chat, logs, or an issue.",
+                "1. 打开 SIweb 并正常登录。2. 在浏览器开发者工具 > 网络中重新加载课程表，并选择 time_stud.asp。3. 在请求标头中只复制 Cookie: 后面的值。绝不要把它粘贴到聊天、日志或 Issue。"
+            ))
+                .font(.body)
+            Button(state.copy.text("Open SIweb in browser", "在浏览器中打开 SIweb")) {
+                openURL(MPUSIwebEndpoints.publishedEntryURL)
+            }
+            SecureField(
+                state.hasSavedSIwebSession
+                    ? state.copy.text("Saved securely — leave blank to reuse", "已安全保存——留空即可继续使用")
+                    : state.copy.text("Cookie value: name=value; name2=value2", "Cookie 值：name=value; name2=value2"),
+                text: siwebSessionBinding
+            )
+            .frame(maxWidth: 560)
+            HStack(spacing: 12) {
+                Button(state.isSyncing
+                       ? state.copy.text("Syncing…", "正在同步……")
+                       : state.copy.text("Save session and sync", "保存会话并同步")) {
+                    Task { await state.synchronizeSIweb() }
+                }
+                .disabled(state.isSyncing)
+                Button(state.copy.text("Forget SIweb", "忘记 SIweb")) {
+                    state.forgetSIweb()
+                }
+                .disabled(state.isSyncing || !state.hasSavedSIwebSession)
+            }
 
             Text(state.statusMessage)
                 .font(.subheadline)
             ContentRow(
                 title: state.copy.text("Windows privacy boundary", "Windows 隐私边界"),
                 detail: state.copy.text(
-                    "Token: Windows Credential Manager · Offline data: local app folder · Read-only Canvas · No iCloud, Apple Calendar, Outlook, or external calendar writes",
-                    "令牌：Windows 凭据管理器 · 离线数据：本地应用文件夹 · Canvas 只读 · 不使用 iCloud、Apple 日历、Outlook，也不写入任何外部日历"
+                    "Canvas token and SIweb session: Windows Credential Manager · Offline data: local app folder · Read-only sources · No iCloud, Apple Calendar, Outlook, or external calendar writes",
+                    "Canvas 令牌和 SIweb 会话：Windows 凭据管理器 · 离线数据：本地应用文件夹 · 数据来源只读 · 不使用 iCloud、Apple 日历、Outlook，也不写入任何外部日历"
                 )
             )
             ForEach(state.snapshot.sourceHealth, id: \.id) { source in

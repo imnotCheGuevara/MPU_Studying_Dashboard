@@ -9,14 +9,16 @@ let package = Package(
         .executable(name: "CampusDashboardWindows", targets: ["CampusDashboardWindows"])
     ],
     dependencies: [
-        .package(url: "https://github.com/moreSwift/swift-cross-ui", exact: "0.9.0")
+        .package(url: "https://github.com/moreSwift/swift-cross-ui", exact: "0.9.0"),
+        .package(url: "https://github.com/apple/swift-crypto", exact: "4.5.2")
     ],
     targets: [
         .target(
             name: "CampusDashboardWindowsCore",
             dependencies: [
                 .product(name: "SwiftCrossUI", package: "swift-cross-ui"),
-                .product(name: "DefaultBackend", package: "swift-cross-ui")
+                .product(name: "DefaultBackend", package: "swift-cross-ui"),
+                .product(name: "Crypto", package: "swift-crypto")
             ],
             path: "Sources/CampusDashboard",
             sources: [
@@ -29,8 +31,15 @@ let package = Package(
                 "Connectors/Canvas/CanvasConcurrencyGate.swift",
                 "Connectors/Canvas/CanvasAPIConnector.swift",
                 "Connectors/Canvas/CanvasSnapshotLoader.swift",
+                "Connectors/SIweb/SIwebConfiguration.swift",
+                "Connectors/SIweb/SIwebConcurrencyGate.swift",
+                "Connectors/SIweb/SIwebConnector.swift",
+                "Connectors/SIweb/SIwebHTMLParser.swift",
+                "Connectors/SIweb/SIwebSnapshotLoader.swift",
                 "Windows/WindowsCredentialSecretStore.swift",
                 "Windows/WindowsCanvasSnapshotMapper.swift",
+                "Windows/WindowsSIwebSessionInput.swift",
+                "Windows/WindowsSIwebSnapshotMerger.swift",
                 "Windows/WindowsSnapshotStore.swift",
                 "Windows/WindowsLocalization.swift",
                 "Windows/WindowsInAppReminder.swift",

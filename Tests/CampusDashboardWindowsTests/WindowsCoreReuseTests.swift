@@ -111,6 +111,105 @@ final class WindowsCoreReuseTests: XCTestCase {
         }
     }
 
+    func testSIwebSessionInputAcceptsOnlyCookieHeaderValue() throws {
+        let input = WindowsSIwebSessionInput()
+
+        XCTAssertEqual(
+            try input.normalize("  ASPSESSIONID=abc123; route=node-2  "),
+            "ASPSESSIONID=abc123; route=node-2"
+        )
+        XCTAssertThrowsError(try input.normalize("Cookie: ASPSESSIONID=abc123"))
+        XCTAssertThrowsError(try input.normalize("Authorization: Bearer secret"))
+        XCTAssertThrowsError(try input.normalize("ASPSESSIONID=abc123\r\nInjected=yes"))
+        XCTAssertThrowsError(try input.normalize("ASPSESSIONID=one; ASPSESSIONID=two"))
+        XCTAssertThrowsError(try input.normalize("password-without-cookie-name"))
+    }
+
+    func testSIwebMergerReusesCanvasCourseAndPreservesMeetingIdentity() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let canvas = WindowsCanvasSnapshotMapper().map(
+            CanvasConnectorSnapshot(
+                courses: [CanvasCoursePayload(
+                    sourceObjectID: "canvas-course", name: "Systems", code: "CS301", term: "Fall"
+                )],
+                tasks: [CanvasTaskPayload(
+                    sourceObjectID: "task", courseSourceObjectID: "canvas-course", title: "Lab",
+                    officialType: "assignment", officialDueAt: now.addingTimeInterval(3_600)
+                )],
+                announcements: []
+            ),
+            accountID: "canvas.example.edu",
+            syncedAt: now
+        )
+        let payload = SIwebMeetingPayload(
+            sourceObjectID: "siweb-meeting", courseSourceObjectID: "SI-CS301",
+            courseName: "Systems", courseCode: "CS301", startsAt: now,
+            endsAt: now.addingTimeInterval(5_400), timeZoneIdentifier: "Asia/Macau",
+            location: "A101", isCancelled: false,
+            parserVersion: SIwebHTMLParser.mpuVersion
+        )
+        let merger = WindowsSIwebSnapshotMerger()
+
+        let first = merger.merge(SIwebSnapshot(meetings: [payload]), into: canvas, syncedAt: now)
+        let second = merger.merge(SIwebSnapshot(meetings: [payload]), into: first, syncedAt: now)
+
+        XCTAssertEqual(first.courses.count, 1)
+        XCTAssertEqual(first.meetings.first?.courseID, first.courses.first?.id)
+        XCTAssertEqual(first.tasks.map(\.title), ["Lab"])
+        XCTAssertEqual(first.sourceHealth.map(\.source.rawValue).sorted(), ["Canvas", "SIweb"])
+        XCTAssertEqual(second.meetings.first?.id, first.meetings.first?.id)
+    }
+
+    func testSIwebParserUsesSharedContractAndProducesContentHash() throws {
+        let html = """
+        <main data-siweb-contract="schedule-v1" data-siweb-complete="true">
+          <article data-siweb-course-id="SI-CS301" data-siweb-course-name="Systems" data-siweb-course-code="CS301">
+            <div data-siweb-meeting-id="m1"
+                 data-siweb-start="2026-09-14T09:00:00+08:00"
+                 data-siweb-end="2026-09-14T10:00:00+08:00"
+                 data-siweb-location="A101"
+                 data-siweb-status="scheduled"></div>
+          </article>
+        </main>
+        """
+
+        let result = try SIwebHTMLParser(baseURL: MPUSIwebEndpoints.operationalBaseURL)
+            .parse(Data(html.utf8))
+
+        XCTAssertEqual(result.meetings.count, 1)
+        XCTAssertEqual(result.meetings.first?.courseCode, "CS301")
+        XCTAssertEqual(result.meetings.first?.location, "A101")
+        XCTAssertEqual(result.meetings.first?.sourceContentHash.count, 64)
+    }
+
+    func testForgettingSIwebKeepsCanvasData() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let canvas = WindowsCanvasSnapshotMapper().map(
+            CanvasConnectorSnapshot(
+                courses: [CanvasCoursePayload(
+                    sourceObjectID: "canvas-course", name: "Systems", code: "CS301", term: "Fall"
+                )],
+                tasks: [], announcements: []
+            ),
+            accountID: "canvas.example.edu",
+            syncedAt: now
+        )
+        let payload = SIwebMeetingPayload(
+            sourceObjectID: "siweb-meeting", courseSourceObjectID: "OTHER",
+            courseName: "Design", courseCode: "ART100", startsAt: now,
+            endsAt: now.addingTimeInterval(3_600), timeZoneIdentifier: "Asia/Macau",
+            isCancelled: false, parserVersion: SIwebHTMLParser.mpuVersion
+        )
+        let merger = WindowsSIwebSnapshotMerger()
+        let combined = merger.merge(SIwebSnapshot(meetings: [payload]), into: canvas, syncedAt: now)
+
+        let result = merger.removingSIweb(from: combined)
+
+        XCTAssertEqual(result.courses.map(\.name), ["Systems"])
+        XCTAssertTrue(result.meetings.isEmpty)
+        XCTAssertEqual(result.sourceHealth.map(\.source), [.canvas])
+    }
+
     func testSnapshotStoreRoundTripsCanonicalDataAndRemovesIt() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("CampusDashboardWindowsTests-\(UUID().uuidString)", isDirectory: true)
@@ -256,6 +355,7 @@ final class WindowsCoreReuseTests: XCTestCase {
         let state = WindowsDashboardState(
             configurationStore: UserDefaultsCanvasConfigurationStore(defaults: defaults),
             secretStore: FakeSecretStore(),
+            siwebSecretStore: FakeSecretStore(),
             snapshotStore: WindowsSnapshotStore(fileURL: directory.appendingPathComponent("snapshot-v1.json")),
             languageStore: languageStore
         )
@@ -287,6 +387,7 @@ final class WindowsCoreReuseTests: XCTestCase {
         let state = WindowsDashboardState(
             configurationStore: configurationStore,
             secretStore: secrets,
+            siwebSecretStore: FakeSecretStore(),
             snapshotStore: snapshotStore
         )
 
