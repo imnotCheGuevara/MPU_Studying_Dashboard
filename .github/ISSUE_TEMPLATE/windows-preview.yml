@@ -1,0 +1,133 @@
+name: Windows Preview feedback / Windows 预览版反馈
+description: Report a privacy-safe Windows 11 preview problem / 提交不含敏感信息的 Windows 11 预览版问题
+title: "[Windows Preview 2] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for testing Campus Dashboard on Windows. Do not include access tokens, cookies, school content, tenant/account URLs, raw API responses, the snapshot file, Credential Manager contents, or screenshots containing school data.
+
+        感谢测试 Windows 版 Campus Dashboard。请勿提交访问令牌、Cookie、学校内容、包含租户或账户信息的网址、原始 API 响应、快照文件、凭据管理器内容或包含学校数据的截图。
+
+  - type: input
+    id: release
+    attributes:
+      label: Release tag / 发布版本
+      description: Use the tag shown on the GitHub release.
+      placeholder: v0.1.0-windows-preview.2
+    validations:
+      required: true
+
+  - type: input
+    id: zip-sha256
+    attributes:
+      label: ZIP SHA-256
+      description: Copy the verified hash only; do not attach the ZIP.
+      placeholder: 64 hexadecimal characters
+    validations:
+      required: true
+
+  - type: input
+    id: windows-version
+    attributes:
+      label: Windows version / Windows 版本
+      description: Include the Windows 11 edition and build number; do not include the computer or account name.
+      placeholder: Windows 11 24H2, build 26100
+    validations:
+      required: true
+
+  - type: dropdown
+    id: language
+    attributes:
+      label: App language / 应用语言
+      options:
+        - English
+        - 简体中文
+        - Both / 两者
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scaling
+    attributes:
+      label: Display scaling / 显示缩放
+      options:
+        - 100%
+        - 125%
+        - 150%
+        - Other / 其他
+    validations:
+      required: true
+
+  - type: dropdown
+    id: failed-step
+    attributes:
+      label: Failed smoke-test step / 失败的测试步骤
+      options:
+        - Download or checksum / 下载或校验和
+        - First launch / 首次启动
+        - Navigation / 页面导航
+        - Language persistence / 语言保持
+        - Foreground reminders / 前台提醒
+        - Keyboard navigation / 键盘导航
+        - Display scaling / 显示缩放
+        - Canvas read-only setup or refresh / Canvas 只读配置或刷新
+        - Restart persistence / 重启后保持
+        - Offline behavior / 离线行为
+        - Forget Canvas or clear data / 忘记 Canvas 或清除数据
+        - Privacy or prohibited integration / 隐私或禁用的集成
+        - Other / 其他
+    validations:
+      required: true
+
+  - type: dropdown
+    id: timing
+    attributes:
+      label: When did it fail? / 何时失败？
+      options:
+        - Before setup / 配置前
+        - During read-only refresh / 只读刷新时
+        - After restart / 重启后
+        - While offline / 离线时
+        - Other / 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps / 复现步骤
+      description: Use synthetic preview data where possible. Replace course names, task titles, URLs, and other school details with generic labels.
+      placeholder: |
+        1. Opened ...
+        2. Selected ...
+        3. Observed ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed result / 实际结果
+      description: Give only the non-sensitive error category or visible behavior.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result / 预期结果
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy confirmation / 隐私确认
+      options:
+        - label: I removed all tokens, cookies, account or tenant URLs, school content, raw API responses, snapshot data, and Credential Manager data. / 我已移除所有令牌、Cookie、账户或租户网址、学校内容、原始 API 响应、快照数据及凭据管理器数据。
+          required: true
+        - label: Any screenshot uses synthetic preview data only. / 所有截图只使用合成预览数据，或本报告没有截图。
+          required: true
+        - label: I understand that SIweb, DeepSeek, background refresh, native Windows notifications, and a signed installer are not included in Preview 2. / 我知道 Preview 2 尚未包含 SIweb、DeepSeek、后台刷新、Windows 原生通知和签名安装程序。
+          required: true

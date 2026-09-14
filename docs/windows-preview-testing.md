@@ -71,6 +71,8 @@ SIweb, background refresh, and native Windows notifications are not included in 
 
 ## Privacy-safe defect report
 
+Open the bilingual [Windows Preview feedback form](https://github.com/imnotCheGuevara/MPU_Studying_Dashboard/issues/new?template=windows-preview.yml), or use the same fields below.
+
 Include:
 
 - release tag and ZIP SHA-256;
