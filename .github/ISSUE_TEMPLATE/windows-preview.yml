@@ -1,6 +1,6 @@
 name: Windows Preview feedback / Windows 预览版反馈
 description: Report a privacy-safe Windows 11 preview problem / 提交不含敏感信息的 Windows 11 预览版问题
-title: "[Windows Preview 2] "
+title: "[Windows Preview 3] "
 body:
   - type: markdown
     attributes:
@@ -14,7 +14,7 @@ body:
     attributes:
       label: Release tag / 发布版本
       description: Use the tag shown on the GitHub release.
-      placeholder: v0.1.0-windows-preview.2
+      placeholder: v0.1.0-windows-preview.3
     validations:
       required: true
 
@@ -72,9 +72,11 @@ body:
         - Keyboard navigation / 键盘导航
         - Display scaling / 显示缩放
         - Canvas read-only setup or refresh / Canvas 只读配置或刷新
+        - SIweb read-only setup or refresh / SIweb 只读配置或刷新
         - Restart persistence / 重启后保持
         - Offline behavior / 离线行为
-        - Forget Canvas or clear data / 忘记 Canvas 或清除数据
+        - Forget Canvas or source isolation / 忘记 Canvas 或来源隔离
+        - Forget SIweb or source isolation / 忘记 SIweb 或来源隔离
         - Privacy or prohibited integration / 隐私或禁用的集成
         - Other / 其他
     validations:
@@ -129,5 +131,5 @@ body:
           required: true
         - label: Any screenshot uses synthetic preview data only. / 所有截图只使用合成预览数据，或本报告没有截图。
           required: true
-        - label: I understand that SIweb, DeepSeek, background refresh, native Windows notifications, and a signed installer are not included in Preview 2. / 我知道 Preview 2 尚未包含 SIweb、DeepSeek、后台刷新、Windows 原生通知和签名安装程序。
+        - label: I understand that automated SIweb login, DeepSeek, background refresh, native Windows notifications, and a signed installer are not included in Preview 3. / 我知道 Preview 3 尚未包含自动 SIweb 登录、DeepSeek、后台刷新、Windows 原生通知和签名安装程序。
           required: true
