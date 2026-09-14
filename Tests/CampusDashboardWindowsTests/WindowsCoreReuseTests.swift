@@ -210,6 +210,50 @@ final class WindowsCoreReuseTests: XCTestCase {
         XCTAssertEqual(result.sourceHealth.map(\.source), [.canvas])
     }
 
+    func testForgettingCanvasKeepsSIwebWithoutCanvasCourseMetadata() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let canvas = WindowsCanvasSnapshotMapper().map(
+            CanvasConnectorSnapshot(
+                courses: [CanvasCoursePayload(
+                    sourceObjectID: "canvas-course", name: "Systems", code: "CS301", term: "Fall"
+                )],
+                tasks: [CanvasTaskPayload(
+                    sourceObjectID: "task", courseSourceObjectID: "canvas-course", title: "Lab",
+                    officialType: "assignment", officialDueAt: now.addingTimeInterval(3_600)
+                )],
+                announcements: []
+            ),
+            accountID: "canvas.example.edu",
+            syncedAt: now
+        )
+        let payload = SIwebMeetingPayload(
+            sourceObjectID: "siweb-meeting", courseSourceObjectID: "SI-CS301",
+            courseName: "Systems", courseCode: "CS301", startsAt: now,
+            endsAt: now.addingTimeInterval(5_400), timeZoneIdentifier: "Asia/Macau",
+            location: "A101", isCancelled: false,
+            sourceURL: MPUSIwebEndpoints.classTimeURL,
+            parserVersion: SIwebHTMLParser.mpuVersion
+        )
+        let merger = WindowsSIwebSnapshotMerger()
+        let combined = merger.merge(SIwebSnapshot(meetings: [payload]), into: canvas, syncedAt: now)
+
+        let result = merger.removingCanvas(from: combined)
+
+        XCTAssertTrue(result.tasks.isEmpty)
+        XCTAssertEqual(result.meetings.count, 1)
+        XCTAssertEqual(result.sourceHealth.map(\.source), [.siweb])
+        XCTAssertEqual(result.courses.count, 1)
+        XCTAssertEqual(result.courses.first?.sourceAccountID, WindowsSIwebSnapshotMerger.accountID)
+        XCTAssertEqual(result.courses.first?.name, "Systems")
+        XCTAssertEqual(result.courses.first?.code, "")
+        XCTAssertEqual(result.courses.first?.term, "")
+        XCTAssertEqual(result.courses.first?.sourceURL, MPUSIwebEndpoints.classTimeURL.absoluteString)
+
+        let refreshed = merger.merge(SIwebSnapshot(meetings: [payload]), into: result, syncedAt: now)
+        XCTAssertEqual(refreshed.courses.first?.id, result.courses.first?.id)
+        XCTAssertEqual(refreshed.meetings.first?.id, result.meetings.first?.id)
+    }
+
     func testSnapshotStoreRoundTripsCanonicalDataAndRemovesIt() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("CampusDashboardWindowsTests-\(UUID().uuidString)", isDirectory: true)

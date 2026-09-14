@@ -19,7 +19,8 @@ struct WindowsSIwebSnapshotMerger {
         var newSIwebCourses: [Course] = []
         for payload in source.meetings {
             guard courseBySourceID[payload.courseSourceObjectID] == nil else { continue }
-            if let prior = priorSIwebCourses[payload.courseSourceObjectID] {
+            if let prior = priorSIwebCourses[payload.courseSourceObjectID]
+                ?? matchingCourse(for: payload, in: Array(priorSIwebCourses.values)) {
                 let refreshed = Course(
                     id: prior.id,
                     sourceAccountID: Self.accountID,
@@ -141,10 +142,27 @@ struct WindowsSIwebSnapshotMerger {
         result.announcements.removeAll { $0.source == .canvas }
         let retainedMeetings = result.meetings.filter { $0.source != .canvas }
         let retainedCourseIDs = Set(retainedMeetings.map(\.courseID))
+        let retainedMeetingByCourseID = Dictionary(
+            retainedMeetings.map { ($0.courseID, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
         result.meetings = retainedMeetings
         result.confirmations.removeAll { !retainedCourseIDs.contains($0.courseID) }
-        result.courses.removeAll {
-            $0.sourceAccountID != Self.accountID && !retainedCourseIDs.contains($0.id)
+        result.courses = result.courses.compactMap { course in
+            guard retainedCourseIDs.contains(course.id) else { return nil }
+            guard course.sourceAccountID != Self.accountID,
+                  let meeting = retainedMeetingByCourseID[course.id]
+            else { return course }
+            return Course(
+                id: course.id,
+                sourceAccountID: Self.accountID,
+                sourceObjectID: "retained-\(course.id.uuidString)",
+                name: meeting.title,
+                code: "",
+                term: "",
+                colorName: "teal",
+                sourceURL: meeting.sourceURL
+            )
         }
         return result
     }
