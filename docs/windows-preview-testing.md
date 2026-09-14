@@ -1,6 +1,6 @@
 # Windows preview testing
 
-This guide is for the controlled, unsigned Campus Dashboard Windows 11 x64 preview. It has no iCloud, Apple Calendar, Outlook, Microsoft Graph, Google Calendar, CalDAV, or other external-calendar integration. Canvas access is read-only. Do not share access tokens, school content, screenshots containing private data, or the local data directory when reporting a defect.
+This guide is for the controlled, unsigned Campus Dashboard Windows 11 x64 preview. It has no iCloud, Apple Calendar, Outlook, Microsoft Graph, Google Calendar, CalDAV, or other external-calendar integration. Canvas and SIweb access are read-only. Do not share access tokens, SIweb cookies, school content, screenshots containing private data, or the local data directory when reporting a defect.
 
 ## Download and verify
 
@@ -36,9 +36,21 @@ After a successful refresh:
 1. Verify that Today, Tasks, and Announcements show expected data without exposing it in a defect report.
 2. Close the app completely and reopen it.
 3. Verify that the last successful normalized snapshot is still available and the token does not need to be entered again.
-4. Use **Forget Canvas** only when testing removal. It removes the Canvas credential, saved URL, and offline snapshot owned by this Windows app.
+4. Use **Forget Canvas** only when testing removal. It removes the Canvas credential, saved URL, and Canvas-derived offline data owned by this Windows app; SIweb timetable data remains if SIweb is still connected.
 
 Never paste a token into GitHub, chat, screenshots, logs, terminal commands, or a bug report.
+
+## SIweb timetable read-only beta
+
+This advanced beta reuses the accepted SIweb parser and read-only network boundary. The app does not automate SIweb login, bypass SSO, CAPTCHA, MFA, or access controls.
+
+1. Select **Open SIweb in browser** in Settings and sign in normally in the system browser.
+2. Open the browser Developer Tools **Network** panel, reload the timetable page, and select the `time_stud.asp` request.
+3. Under **Request Headers**, copy only the value after `Cookie:`. Do not copy the `Cookie:` label, a password, an authorization header, or the full request.
+4. Paste that value into the app's secure field and select **Save session and sync**.
+5. Verify only aggregate behavior: Schedule gains the expected number of meetings and shows a healthy SIweb source status. Do not put course details in a defect report.
+
+The value is validated before being stored in Windows Credential Manager and is never written to the normalized snapshot. If the session expires, sign in again in the browser and replace it. **Forget SIweb** removes only the SIweb credential and SIweb timetable data; saved Canvas data remains available.
 
 ## Data, upgrade, and uninstall
 
@@ -48,9 +60,9 @@ The normalized offline snapshot is stored at:
 %LOCALAPPDATA%\CampusDashboard\snapshot-v1.json
 ```
 
-Credentials are stored separately in Windows Credential Manager. A portable upgrade is performed by extracting a newer verified ZIP into a new directory, closing the old app, and launching the new executable. Do not overwrite files while the app is running. The local snapshot and credential remain available because they are not stored inside the extracted application directory.
+Credentials are stored separately in Windows Credential Manager. A portable upgrade is performed by extracting a newer verified ZIP into a new directory, closing the old app, and launching the new executable. Do not overwrite files while the app is running. The local snapshot and credentials remain available because they are not stored inside the extracted application directory.
 
-Deleting the extracted application directory uninstalls the portable executable but deliberately leaves local data and credentials intact. To remove app-owned Canvas data first, use **Forget Canvas** in Settings. If the executable no longer starts, remove the `CampusDashboard` entry from Windows Credential Manager and delete `%LOCALAPPDATA%\CampusDashboard` manually. Do not remove unrelated credentials or directories.
+Deleting the extracted application directory uninstalls the portable executable but deliberately leaves local data and credentials intact. To remove app-owned data first, use **Forget Canvas** and **Forget SIweb** in Settings. If the executable no longer starts, remove only Credential Manager entries whose target begins with `CampusDashboard:` and delete `%LOCALAPPDATA%\CampusDashboard` manually. Do not remove unrelated credentials or directories.
 
 ## Real-machine smoke matrix
 
@@ -63,11 +75,13 @@ Record only pass/fail and non-sensitive error categories for each item:
 - Test keyboard traversal and activation without requiring a mouse.
 - Test 100%, 125%, and 150% Windows display scaling for clipped or unreachable controls.
 - Configure Canvas, run a read-only refresh, restart, and confirm that the offline snapshot and credential behavior are correct.
+- Configure the SIweb beta using only the browser request's Cookie value, run a read-only refresh, restart, and confirm that the timetable snapshot and credential behavior are correct.
+- Use **Forget SIweb** and verify that SIweb meetings and its credential disappear while Canvas data remains.
 - Disconnect the network, reopen the app, and verify that cached content remains visible with a clear offline/error state.
-- Use **Forget Canvas**, restart, and verify that the token, URL, and snapshot are no longer available.
+- Use **Forget Canvas**, restart, and verify that the token, URL, and Canvas-derived snapshot data are no longer available while any connected SIweb timetable remains.
 - Confirm that the Windows app contains no iCloud or external-calendar settings or authorization request.
 
-SIweb, background refresh, and native Windows notifications are not included in this preview and must not be reported as passing.
+Automated SIweb login, DeepSeek, background refresh, and native Windows notifications are not included in this preview and must not be reported as passing.
 
 ## Privacy-safe defect report
 
