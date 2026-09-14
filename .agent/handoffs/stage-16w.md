@@ -90,7 +90,7 @@ GitHub release draft id `388566826` is named `Campus Dashboard Windows Preview 3
 - `CampusDashboard-Windows-0.1.0-portable-x64.zip`: asset id `562764492`, `119767108` bytes, GitHub release-asset digest `sha256:d18b32e760a19acd4d81e0d07abfd884c3a15736a5e90b0db637c94ac99b2c7d`;
 - `SHA256SUMS.txt`: asset id `562757670`, `114` bytes, GitHub release-asset digest `sha256:cbaeddd8a0a85b61400d9f3d8971befc25ac13116868480f3088268a8e63bd75`.
 
-The draft body documents Canvas and SIweb read-only behavior, normal-browser SIweb authorization, separate Credential Manager entries, source-isolated forget behavior, bilingual six-surface UI, foreground reminders, installation/testing steps, exact provenance, and the absence of iCloud or substitute external calendars. Publishing remains an external public action and requires fresh immediate user confirmation.
+The draft body documents Canvas and SIweb read-only behavior, normal-browser SIweb authorization, separate Credential Manager entries, source-isolated forget behavior, bilingual six-surface UI, foreground reminders, installation/testing steps, exact provenance, and the absence of iCloud or substitute external calendars. Documentation commit `d014621` adds `docs/windows-preview-3-friend-guide.zh-CN.md`, a concise Simplified Chinese download, checksum, launch, source-sync, isolation, privacy, and defect-report walkthrough; the verified draft body was updated to link it without changing the two binary assets, release id, target, or draft/prerelease state. Publishing remains an external public action and requires fresh immediate user confirmation.
 
 ## Remaining acceptance work
 
