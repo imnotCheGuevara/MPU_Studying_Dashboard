@@ -4,7 +4,6 @@ import CryptoKit
 #elseif canImport(Crypto)
 import Crypto
 #endif
-import CoreFoundation
 
 struct SIwebParsedPage: Equatable, Sendable {
     let meetings: [SIwebMeetingPayload]
@@ -336,10 +335,10 @@ struct SIwebHTMLParser: Sendable {
     }
 
     private static func decodeHTML(_ data: Data) -> String? {
-        let big5 = String.Encoding(
-            // CFStringEncoding Big-5 is 0x0A03; Foundation exposes no Swift convenience constant.
-            rawValue: CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(0x0A03))
-        )
+        // NSString encodings store non-built-in CF encodings by setting the high bit.
+        // Big-5 is CFStringEncoding 0x0A03, so this value works through Foundation
+        // without importing the unavailable public CoreFoundation module on Windows.
+        let big5 = String.Encoding(rawValue: 0x80000A03)
         return String(data: data, encoding: .utf8) ?? String(data: data, encoding: big5)
     }
 
