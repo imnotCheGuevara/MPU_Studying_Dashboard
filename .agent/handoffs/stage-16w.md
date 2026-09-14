@@ -85,10 +85,17 @@ Windows Server 2022 run [34806098324](https://github.com/imnotCheGuevara/MPU_Stu
 
 The downloaded wrapper digest matched GitHub, both wrapper and inner archives passed integrity checks, and the inner checksum passed after interpreting its Windows CRLF line ending. The portable ZIP contains 20 files, including `CampusDashboard.exe` and `WindowsAppRuntimeInstaller.exe`; its SHA-256 is `d18b32e760a19acd4d81e0d07abfd884c3a15736a5e90b0db637c94ac99b2c7d`. A case-insensitive filename scan found no iCloud, EventKit, Outlook, Microsoft Graph, CalDAV, or Google Calendar integration artifact. No live Canvas, SIweb, DeepSeek, Calendar, or notification operation was performed by CI or local archive inspection.
 
+GitHub release draft id `388566826` is named `Campus Dashboard Windows Preview 3`, reserves tag `v0.1.0-windows-preview.3`, targets documentation commit `72a9c5ecfd76bbac8678b04d877798dace1758c4`, and remains `draft: true`, `prerelease: true`, with no publication timestamp. Its release notes pin the binary provenance to functional commit `d43707a76c9125587e428004deb2e3110b7b99b0` and run `34806098324`. Its uploaded assets are:
+
+- `CampusDashboard-Windows-0.1.0-portable-x64.zip`: asset id `562764492`, `119767108` bytes, GitHub release-asset digest `sha256:d18b32e760a19acd4d81e0d07abfd884c3a15736a5e90b0db637c94ac99b2c7d`;
+- `SHA256SUMS.txt`: asset id `562757670`, `114` bytes, GitHub release-asset digest `sha256:cbaeddd8a0a85b61400d9f3d8971befc25ac13116868480f3088268a8e63bd75`.
+
+The draft body documents Canvas and SIweb read-only behavior, normal-browser SIweb authorization, separate Credential Manager entries, source-isolated forget behavior, bilingual six-surface UI, foreground reminders, installation/testing steps, exact provenance, and the absence of iCloud or substitute external calendars. Publishing remains an external public action and requires fresh immediate user confirmation.
+
 ## Remaining acceptance work
 
-1. Create and inspect the Preview 3 draft using only the exact verified run `34806098324` assets; obtain fresh immediate user confirmation before making it public.
-2. Pass the user's real Windows-machine launch, Canvas and SIweb sources, restart, credentials, independent forget-source behavior, navigation, scaling, keyboard, localization, foreground-reminder, offline, clear-data, and privacy smoke using Preview 3.
+1. After fresh immediate user confirmation, publish the already verified Preview 3 draft without changing its tested assets or stated limitations.
+2. Pass the user's real Windows-machine launch, Canvas and SIweb sources, restart, credentials, independent forget-source behavior, navigation, scaling, keyboard, localization, foreground-reminder, offline, clear-data, and privacy smoke using Preview 3 after publication.
 3. Reuse compatible AI, complete persistence, native/background reminders, and presentation/accessibility behavior behind explicit platform boundaries before daily-use acceptance.
 
 Stage 16W cannot be marked `PASS` until the Windows CI artifact and real Windows acceptance matrix pass.

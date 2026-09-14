@@ -4,7 +4,7 @@ Updated: 2026-09-14 Asia/Macau.
 
 ## Active state
 
-- **Stage 16W: ACTIVE / PARTIAL — USER APPROVED 2026-09-12.** Preview 1 remains published and Preview 2 remains an unpublished historical draft. The reuse-first Windows candidate now includes Canvas plus an advanced read-only SIweb timetable beta with independent Credential Manager entries and source-isolated offline data. Windows Server 2022 run `34806098324` passed Release build, tests, portable packaging, checksum, and artifact upload for source commit `d43707a`. Its locally reverified package is being prepared as the unpublished `v0.1.0-windows-preview.3` draft. Real Windows-machine acceptance and deferred daily-use features remain mandatory before `PASS`.
+- **Stage 16W: ACTIVE / PARTIAL — USER APPROVED 2026-09-12.** Preview 1 remains published and Preview 2 remains an unpublished historical draft. The reuse-first Windows candidate now includes Canvas plus an advanced read-only SIweb timetable beta with independent Credential Manager entries and source-isolated offline data. Windows Server 2022 run `34806098324` passed Release build, tests, portable packaging, checksum, and artifact upload for source commit `d43707a`. The locally and server-digest-verified `v0.1.0-windows-preview.3` prerelease draft is ready but not public; publishing requires fresh immediate confirmation. Real Windows-machine acceptance and deferred daily-use features remain mandatory before `PASS`.
 - **Stage 15T: ACCEPTED** at `2578312`. The information-noise repair is merged and independently verified.
 - **Stage 15S: ACCEPTED.** A real cancellation was previewed read-only against one exact current SIweb meeting, confirmed only after explicit action-time approval, and restored only after a separate undo approval. Audit, binding, and outbox evidence remained exact and scoped.
 - **Stage 15R / 15: ACCEPTED.** The signed macOS `0.3.0 (4)` candidate passed live Canvas and SIweb reads, provider-boundary checks, UI evidence, automatic-cadence evidence, the dedicated-calendar lifecycle, and the post-Outlook-removal automated/build/signature gates.
@@ -38,8 +38,8 @@ Updated: 2026-09-14 Asia/Macau.
 
 ## Next gated work
 
-1. Create and independently inspect the `v0.1.0-windows-preview.3` prerelease draft from the exact run `34806098324` assets; keep it private until fresh immediate publication confirmation.
-2. After publication confirmation, ask the user or their friend to complete the real Windows launch, restart, Canvas and SIweb read-only sync, independent forget-source behavior, navigation, scaling, keyboard, localization, foreground-reminder, offline, clear-data, and privacy smoke matrix.
+1. Obtain fresh immediate confirmation and publish the already verified `v0.1.0-windows-preview.3` draft without changing its tested assets or limitations.
+2. After publication, ask the user or their friend to complete the real Windows launch, restart, Canvas and SIweb read-only sync, independent forget-source behavior, navigation, scaling, keyboard, localization, foreground-reminder, offline, clear-data, and privacy smoke matrix.
 3. Return defects to Stage 16W and continue the remaining DeepSeek, complete shared persistence, native/background reminders, signed installer, and physical-machine accessibility work before daily-use acceptance.
 4. Keep Stage 10 paused at 0/7 until the user separately asks to start the trial.
 
