@@ -1,5 +1,14 @@
 # Campus Dashboard
 
+## 最新 Mac 下载：0.3.1（5）
+
+**请使用此修复版替换此前手动分发的旧版，旧版的 DeepSeek 模型配置可能导致公告分析失败。**
+
+- [下载 macOS 0.3.1（Apple Silicon / M 系列）](https://github.com/imnotCheGuevara/MPU_Studying_Dashboard/releases/download/v0.3.1-macos/CampusDashboard-macOS-0.3.1-arm64.zip) — 需要 macOS 14+，不适用于 Intel Mac。
+- [更新说明与校验文件](https://github.com/imnotCheGuevara/MPU_Studying_Dashboard/releases/tag/v0.3.1-macos) · [对应版本源码](https://github.com/imnotCheGuevara/MPU_Studying_Dashboard/tree/v0.3.1-macos)。从源码构建此版本请使用该标签。
+- 退出旧应用后替换为新版；进入设置重新启用 DeepSeek（`deepseek-flash`），再对失败公告点击“重新处理”。
+- 此测试分发包采用 ad-hoc 签名、未经过 Apple 公证，首次打开可能被 macOS 阻止。
+
 ## 中文介绍
 
 Campus Dashboard 是一款面向澳门理工大学（Macao Polytechnic University，MPU）学生的本地化 macOS 学习信息仪表板。**本项目基于澳门理工大学现行使用的 Canvas 教学平台与 SIweb 教务及课表信息系统开发**，希望把分散在不同系统中的课程、作业、公告和课表信息整理到一个清晰、统一的桌面应用中。
