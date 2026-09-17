@@ -185,6 +185,7 @@ struct SpatialTimeGrid: View {
 
     private func eventColor(_ event: CalendarEvent) -> Color {
         switch event.kind {
+        case .manual: .green
         case .courseMeeting: event.source == .canvas ? .red : .blue
         case .officialDeadline: .red
         case .confirmedInferredDeadline: .purple
@@ -195,7 +196,7 @@ struct SpatialTimeGrid: View {
 
     private func eventSymbol(_ event: CalendarEvent) -> String {
         switch event.kind {
-        case .courseMeeting: "person.2"
+        case .manual: "pencil"; case .courseMeeting: "person.2"
         case .officialDeadline: "exclamationmark.circle.fill"
         case .confirmedInferredDeadline: "checkmark.sparkles"
         case .confirmedExam: "graduationcap.fill"
@@ -205,7 +206,7 @@ struct SpatialTimeGrid: View {
 
     private func eventKindLabel(_ event: CalendarEvent) -> String {
         let key = switch event.kind {
-        case .courseMeeting: "Course meeting"
+        case .manual: "Manual event"; case .courseMeeting: "Course meeting"
         case .officialDeadline: "Official deadline"
         case .confirmedInferredDeadline: "Confirmed inferred deadline"
         case .confirmedExam: "Confirmed exam"

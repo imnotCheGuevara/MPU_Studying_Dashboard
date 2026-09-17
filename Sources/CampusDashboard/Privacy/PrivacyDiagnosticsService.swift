@@ -92,6 +92,7 @@ final class PrivacyDiagnosticsService: @unchecked Sendable {
                 }
             case .localUserState:
                 try database.execute("DELETE FROM local_user_states")
+                try database.execute("DELETE FROM manual_events")
             case .syncHistory:
                 try database.execute("DELETE FROM change_records")
                 try database.execute("DELETE FROM sync_runs")
@@ -199,7 +200,7 @@ final class PrivacyDiagnosticsService: @unchecked Sendable {
     private func rowCount(for category: LocalDataCategory) throws -> Int {
         let tables: [String] = switch category {
         case .sourceCache: ["outbox_work", "source_presence", "source_baselines", "raw_source_records", "course_meetings", "announcements", "learning_tasks", "courses"]
-        case .localUserState: ["local_user_states"]
+        case .localUserState: ["local_user_states", "manual_events"]
         case .syncHistory: ["change_records", "sync_runs", "release_metric_events"]
         case .aiHistory: ["ai_parse_results", "ai_provider_cache", "academic_signal_analyses", "academic_signals", "academic_signal_audit", "academic_analysis_decisions"]
         case .notificationHistory: ["notification_deliveries"]

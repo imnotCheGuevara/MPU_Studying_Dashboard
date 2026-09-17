@@ -97,9 +97,10 @@ struct AnnouncementsView: View {
                 Badge(text: model.text(categoryLabel(analysis.primaryCategory)), color: .purple)
             }
             Spacer()
-            Button(model.text("Reprocess")) {
+            Button(model.text(model.reprocessingAnnouncementIDs.contains(announcement.id) ? "Processing…" : "Reprocess")) {
                 Task { await model.reprocessAcademicSignals(for: announcement.id) }
             }
+            .disabled(model.reprocessingAnnouncementIDs.contains(announcement.id))
             .accessibilityHint(model.text("Analyze this announcement again using the current local rules and enabled provider."))
         }
         if let failure = AcademicProviderFailurePresentation.safe(analysis?.failureCategory) {

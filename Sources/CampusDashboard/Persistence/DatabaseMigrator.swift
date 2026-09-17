@@ -122,6 +122,12 @@ enum DatabaseMigrator {
             }
         }
 
+        if version < 16 {
+            try database.transaction {
+                try database.execute("CREATE TABLE manual_events (id TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+                try database.execute("PRAGMA user_version = 16")
+            }
+        }
         let finalVersion = try database.scalarInt("PRAGMA user_version")
         guard finalVersion == SQLiteDatabase.currentSchemaVersion else {
             throw DatabaseError.migration(expected: SQLiteDatabase.currentSchemaVersion, actual: finalVersion)

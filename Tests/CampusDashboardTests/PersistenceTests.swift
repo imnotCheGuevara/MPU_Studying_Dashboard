@@ -24,7 +24,7 @@ struct PersistenceTests {
                 "academic_signal_analyses", "academic_signals", "academic_signal_audit",
                 "academic_personalization_rules", "academic_course_mappings",
                 "academic_course_mapping_audit", "release_metric_events", "academic_analysis_decisions",
-                "placeholder_metrics"
+                "placeholder_metrics", "manual_events"
             ]))
             #expect(try database.scalarInt("PRAGMA foreign_keys") == 1)
         }

@@ -3,7 +3,7 @@ import Foundation
 
 enum DeepSeekDisclosure {
     static let provider = "DeepSeek (Hangzhou DeepSeek Artificial Intelligence Co., Ltd.)"
-    static let model = "deepseek-v4-flash"
+    static let model = "deepseek-flash"
     static let apiOrigin = URL(string: "https://api.deepseek.com")!
     static let endpoint = URL(string: "https://api.deepseek.com/chat/completions")!
     static let privacyReviewed = "2026-09-06 (policy updated 2026-02-10)"

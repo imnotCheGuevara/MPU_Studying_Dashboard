@@ -12,6 +12,13 @@ enum AppLanguage: String, CaseIterable, Identifiable, Sendable {
 enum Localizer {
     // App-owned keys are centralized so localization coverage can be audited.
     static let simplifiedChinese: [String: String] = [
+        "Manual event": "手动事件", "Add event": "新增事件", "Edit event": "编辑事件",
+        "Delete event": "删除事件", "Delete this event?": "删除这个事件？",
+        "Event title": "事件标题",
+        "The end date is included.": "包含结束日期当天。",
+        "Saved in Dashboard only.": "仅保存在 Dashboard 内。",
+        "Enter a title and an end time after the start.": "请填写标题，并确保结束时间晚于开始时间。",
+        "Event could not be saved. Please try again.": "无法保存事件，请重试。",
         "Campus Dashboard": "校园学习面板", "Today": "今日", "Schedule": "日程",
         "Tasks": "任务", "Announcements": "公告", "AI Confirmation Queue": "AI 确认队列", "Needs Review": "待确认",
         "Settings": "设置", "Refresh": "刷新", "Refreshing": "刷新中", "Open Settings": "打开设置",
@@ -118,6 +125,9 @@ enum Localizer {
         "Wait, then reprocess this announcement.": "请稍候，然后重新处理此公告。",
         "Local AI budget reached": "已达到本地 AI 预算",
         "Review the local AI budget in Campus Dashboard settings.": "请检查 Campus Dashboard 设置中的本地 AI 预算。",
+        "Processing…": "处理中…",
+        "AI model mismatch": "AI 模型不匹配",
+        "Update the app and review the selected model in AI settings.": "请更新应用，并在 AI 设置中检查当前模型。",
         "Provider response could not be safely used": "无法安全使用提供方响应",
         "Use the retained local result or reprocess later.": "请使用已保留的本地结果，或稍后重新处理。",
         "Analysis cancelled": "分析已取消", "Reprocess when ready.": "准备好后请重新处理。",

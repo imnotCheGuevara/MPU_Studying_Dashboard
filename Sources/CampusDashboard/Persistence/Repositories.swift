@@ -335,6 +335,9 @@ final class SQLitePersistenceRepository: PersistenceRepository, @unchecked Senda
 }
 
 protocol LocalStateRepository: Sendable {
+    func manualEvents() throws -> [ManualEvent]
+    func saveManualEvent(_ event: ManualEvent) throws
+    func deleteManualEvent(_ id: UUID) throws
     func state(objectType: String, objectID: String) throws -> LocalUserStateRecord?
     func save(_ state: LocalUserStateRecord) throws
 }
@@ -346,12 +349,29 @@ struct LocalPersistenceUnavailable: Error, CustomStringConvertible, Sendable {
 
 struct UnavailableLocalStateRepository: LocalStateRepository {
     let error: LocalPersistenceUnavailable
+    func manualEvents() throws -> [ManualEvent] { throw error }
+    func saveManualEvent(_ event: ManualEvent) throws { throw error }
+    func deleteManualEvent(_ id: UUID) throws { throw error }
     func state(objectType: String, objectID: String) throws -> LocalUserStateRecord? { throw error }
     func save(_ state: LocalUserStateRecord) throws { throw error }
 }
 
 final class SQLiteLocalStateRepository: LocalStateRepository, @unchecked Sendable {
     private let persistence: SQLitePersistenceRepository
+    func manualEvents() throws -> [ManualEvent] {
+        try persistence.database.query("SELECT payload FROM manual_events ORDER BY id").map {
+            try JSONDecoder().decode(ManualEvent.self, from: Data(($0.string("payload") ?? "").utf8))
+        }
+    }
+    func saveManualEvent(_ event: ManualEvent) throws {
+        try event.validate()
+        let payload = String(decoding: try JSONEncoder().encode(event), as: UTF8.self)
+        try persistence.database.execute("INSERT OR REPLACE INTO manual_events (id,payload) VALUES (?,?)",
+            bindings: [.text(event.id.uuidString), .text(payload)])
+    }
+    func deleteManualEvent(_ id: UUID) throws {
+        try persistence.database.execute("DELETE FROM manual_events WHERE id = ?", bindings: [.text(id.uuidString)])
+    }
 
     init(persistence: SQLitePersistenceRepository) { self.persistence = persistence }
     func state(objectType: String, objectID: String) throws -> LocalUserStateRecord? {
@@ -361,6 +381,13 @@ final class SQLiteLocalStateRepository: LocalStateRepository, @unchecked Sendabl
 }
 
 final class InMemoryLocalStateRepository: LocalStateRepository, @unchecked Sendable {
+    private var events: [UUID: ManualEvent] = [:]
+    func manualEvents() throws -> [ManualEvent] { lock.withLock { Array(events.values) } }
+    func saveManualEvent(_ event: ManualEvent) throws {
+        try event.validate()
+        lock.withLock { events[event.id] = event }
+    }
+    func deleteManualEvent(_ id: UUID) throws { _ = lock.withLock { events.removeValue(forKey: id) } }
     private var records: [String: LocalUserStateRecord] = [:]
     private let lock = NSLock()
 

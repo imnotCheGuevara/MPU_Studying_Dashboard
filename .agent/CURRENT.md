@@ -1,8 +1,14 @@
 # Campus Dashboard current context
 
-Updated: 2026-09-14 Asia/Macau.
+Updated: 2026-09-15 Asia/Macau.
 
 ## Active state
+
+- **macOS 0.3.1 (5) release preparation — 2026-09-17:** User authorized publishing the current repaired Mac application and replacing the old download entry. Candidate `dist/macos-0.3.1/Campus Dashboard.app`; 250 tests, Release build, strict signature and packaged Keychain smoke passed. Apple Silicon / macOS 14+. DeepSeek model is `deepseek-flash`; renewed in-app consent and per-announcement reprocessing are required. Live provider verification on the friend's machine remains pending. See `.agent/handoffs/macos-release-2026-09-17.md`.
+
+- **DeepSeek model repair (2026-09-15): implementation and delivery verified; live retry pending user model consent.** Requests now use `deepseek-flash`; exact model checking retained. Specific legacy error display and reprocessing progress added. 250 tests pass; Release, signature and Keychain smoke pass. Delivered and launched at `dist/Campus Dashboard.app`, previous bundle backed up. UI confirms new model and retained Keychain credential. See `.agent/handoffs/deepseek-model-2026-09-15.md`.
+
+- **Stage 16M: implementation PASS — user requested 2026-09-15.** macOS Schedule now supports local manual-event creation, editing and deletion with Today display and schema-16 persistence. Candidate: `dist/manual-events/Campus Dashboard.app`, now also delivered to the usual `dist/Campus Dashboard.app` path and launched normally. Previous dist bundle preserved under `dist/backups/2026-09-15-before-manual-events/`; other installed copies unchanged. Live UI confirmed the manual-event editor is open. Full 248-test suite, Release/signature/Keychain smoke and synthetic creation/edit/Today UI checks passed. No live Calendar writes; Windows unaffected. See `.agent/stages/stage-16m.md` and `.agent/handoffs/stage-16m.md` for this feature only. Production daily-use acceptance is not inferred from synthetic checks.
 
 - **Stage 16W: ACTIVE / PARTIAL — USER APPROVED 2026-09-12.** Preview 1 remains published and Preview 2 remains an unpublished historical draft. The reuse-first Windows candidate now includes Canvas plus an advanced read-only SIweb timetable beta with independent Credential Manager entries and source-isolated offline data. Windows Server 2022 run `34806098324` passed Release build, tests, portable packaging, checksum, and artifact upload for source commit `d43707a`. The locally and server-digest-verified `v0.1.0-windows-preview.3` prerelease draft is ready but not public; publishing requires fresh immediate confirmation. Real Windows-machine acceptance and deferred daily-use features remain mandatory before `PASS`.
 - **Stage 15T: ACCEPTED** at `2578312`. The information-noise repair is merged and independently verified.

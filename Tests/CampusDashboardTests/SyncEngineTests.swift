@@ -376,7 +376,58 @@ struct SyncEngineTests {
             #expect(run.string("fetch_state") == "failed")
             #expect(run.string("error_category") == SyncErrorCategory.unauthorized.rawValue)
             #expect(run.string("redacted_error_summary") == SyncErrorCategory.unauthorized.rawValue)
+            #expect(try database.query(
+                "SELECT authorization_state FROM source_accounts WHERE source_kind = 'Canvas'"
+            ).first?.string("authorization_state") == "unauthorized")
         }
+    }
+
+    @Test("SIweb login redirects require reconnection and a later success restores authorization")
+    func siwebSessionStateRecovery() async throws {
+        try await withDatabase { database in
+            let failed = ConnectorErrorReader(
+                source: SourceKind.siweb,
+                error: SIwebConnectorError.structural(.loginRedirect)
+            )
+            let failedEngine = makeEngine(database: database, readers: [failed])
+
+            await #expect(throws: SyncEngineError(category: .unauthorized, retryable: false)) {
+                try await failedEngine.synchronize(source: .siweb, trigger: .scheduled)
+            }
+            #expect(try database.query(
+                "SELECT authorization_state FROM source_accounts WHERE source_kind = 'SIweb'"
+            ).first?.string("authorization_state") == "unauthorized")
+
+            let recovered = MutableSyncReader(
+                source: .siweb, snapshot: siwebSnapshot(cancelled: false)
+            )
+            let recoveredEngine = makeEngine(database: database, readers: [recovered])
+            _ = try await recoveredEngine.synchronize(source: .siweb, trigger: .manual)
+            #expect(try database.query(
+                "SELECT authorization_state FROM source_accounts WHERE source_kind = 'SIweb'"
+            ).first?.string("authorization_state") == "authorized")
+        }
+    }
+
+    @Test("Known-expired SIweb sessions pause only automatic attempts")
+    func siwebExpiredSessionScheduling() {
+        for state in ["missing", "expired", "revoked", "unauthorized"] {
+            #expect(!ProductionSyncRunner.shouldAttemptSIweb(
+                trigger: .scheduled, authorizationState: state
+            ))
+            #expect(!ProductionSyncRunner.shouldAttemptSIweb(
+                trigger: .recovery, authorizationState: state
+            ))
+            #expect(ProductionSyncRunner.shouldAttemptSIweb(
+                trigger: .manual, authorizationState: state
+            ))
+        }
+        #expect(ProductionSyncRunner.shouldAttemptSIweb(
+            trigger: .scheduled, authorizationState: "authorized"
+        ))
+        #expect(ProductionSyncRunner.shouldAttemptSIweb(
+            trigger: .scheduled, authorizationState: nil
+        ))
     }
 
     @Test("Domain, raw, change, run success, and outbox writes roll back together")

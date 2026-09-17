@@ -4,6 +4,25 @@ import Testing
 
 @Suite("DeepSeek provider consent and safety gate")
 struct DeepSeekProviderTests {
+    @Test("V4.1 model migration requires renewed consent and accepts the current response name")
+    func flashModelMigration() async throws {
+        try await withDatabase { database in
+            let secrets = FakeSecretStore()
+            let configuration = try readyConfiguration(database, secrets)
+            var settings = try AIPersistence(database: database).settings()
+            settings.providerModel = "deepseek-v4-flash"
+            try AIPersistence(database: database).saveSettings(settings)
+            let transport = ScriptedDeepSeekTransport([.success(response(model: "deepseek-flash"))])
+            let provider = DeepSeekAIProvider(database: database, configuration: configuration, transport: transport)
+            await #expect(throws: AIParsingError.self) { _ = try await provider.structuredSuggestion(for: input()) }
+            #expect(await transport.callCount == 0)
+            #expect(configuration.hasKey())
+            try configuration.grantCurrentConsent(schoolPolicyConfirmed: true)
+            _ = try await provider.structuredSuggestion(for: input())
+            #expect(await transport.callCount == 1)
+        }
+    }
+
     @Test("Provider stays off until current consent and a Keychain key exist")
     func consentAndCredentialGate() async throws {
         try await withDatabase { database in
@@ -45,6 +64,7 @@ struct DeepSeekProviderTests {
             #expect(body.count <= DeepSeekAIProvider.maximumRequestBytes)
             let object = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
             #expect(Set(object.keys) == ["model", "messages", "response_format", "max_tokens", "temperature", "stream", "thinking", "tool_choice"])
+            #expect(object["model"] as? String == "deepseek-flash")
             #expect(object["tool_choice"] as? String == "none")
             #expect(object["tools"] == nil)
             let encoded = String(decoding: body, as: UTF8.self)

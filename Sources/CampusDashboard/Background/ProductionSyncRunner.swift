@@ -31,6 +31,7 @@ struct ProductionSyncRunner: SourceScopedScheduledSyncRunner {
         var accounts: [SyncSourceAccount] = []
         var readers: [any SyncSourceReader] = []
         var instanceBySource: [SourceKind: String] = [:]
+        var skippedResults: [ScheduledSourceResult] = []
         if requestedSource == nil || requestedSource == .canvas,
            let configuration = try? UserDefaultsCanvasConfigurationStore().load() {
             instanceBySource[.canvas] = configuration.baseURL.absoluteString
@@ -46,19 +47,36 @@ struct ProductionSyncRunner: SourceScopedScheduledSyncRunner {
         if requestedSource == nil || requestedSource == .siweb,
            let configuration = try? UserDefaultsSIwebConfigurationStore().load() {
             instanceBySource[.siweb] = configuration.baseURL.absoluteString
-            accounts.append(SyncSourceAccount(
-                id: UUID(), source: .siweb, instanceURL: configuration.baseURL.absoluteString,
-                displayName: "SIweb"
-            ))
-            readers.append(SIwebSyncSourceReader(service: SIwebConnector(
-                configuration: configuration,
-                authorizer: KeychainSIwebSessionAuthorizer(
-                    secretStore: KeychainSecretStore(service: SIwebLocalTool.keychainService),
-                    account: configuration.sessionAccount
-                )
-            )))
+            let existing = (try? database.query(
+                "SELECT id, display_name, authorization_state FROM source_accounts WHERE source_kind=? AND instance_url=? LIMIT 1",
+                bindings: [.text(SourceKind.siweb.rawValue), .text(configuration.baseURL.absoluteString)]
+            ))?.first
+            if !Self.shouldAttemptSIweb(
+                trigger: trigger, authorizationState: existing?.string("authorization_state")
+            ) {
+                skippedResults.append(ScheduledSourceResult(
+                    sourceAccountID: existing?.string("id") ?? SourceKind.siweb.rawValue,
+                    sourceName: existing?.string("display_name") ?? "SIweb",
+                    errorCategory: SyncErrorCategory.unauthorized.rawValue
+                ))
+            } else {
+                let secretStore = KeychainSecretStore(service: SIwebLocalTool.keychainService)
+                accounts.append(SyncSourceAccount(
+                    id: UUID(), source: .siweb, instanceURL: configuration.baseURL.absoluteString,
+                    displayName: "SIweb"
+                ))
+                readers.append(SIwebSyncSourceReader(service: SIwebConnector(
+                    configuration: configuration,
+                    authorizer: KeychainSIwebSessionAuthorizer(
+                        secretStore: secretStore, account: configuration.sessionAccount
+                    ),
+                    sessionLifecycle: KeychainSIwebSessionLifecycle(
+                        secretStore: secretStore, account: configuration.sessionAccount
+                    )
+                )))
+            }
         }
-        guard !accounts.isEmpty else { return [] }
+        guard !accounts.isEmpty else { return skippedResults }
         let engine = DeterministicSyncEngine(database: database, accounts: accounts, readers: readers)
         let outcomes = await engine.synchronizeAll(trigger: trigger)
         // This only updates local reconciliation metadata and signal targets. It never
@@ -74,7 +92,7 @@ struct ProductionSyncRunner: SourceScopedScheduledSyncRunner {
             )
             _ = await processor.processPending(limit: 500)
         }
-        return outcomes.map { outcome in
+        let completedResults = outcomes.map { outcome in
             let row = try? database.query(
                 "SELECT id, display_name FROM source_accounts WHERE source_kind=? AND instance_url=? LIMIT 1",
                 bindings: [
@@ -89,5 +107,11 @@ struct ProductionSyncRunner: SourceScopedScheduledSyncRunner {
                 errorCategory: error
             )
         }
+        return (completedResults + skippedResults).sorted { $0.sourceName < $1.sourceName }
+    }
+
+    static func shouldAttemptSIweb(trigger: SyncTrigger, authorizationState: String?) -> Bool {
+        guard trigger != .manual else { return true }
+        return !["missing", "expired", "revoked", "unauthorized"].contains(authorizationState)
     }
 }

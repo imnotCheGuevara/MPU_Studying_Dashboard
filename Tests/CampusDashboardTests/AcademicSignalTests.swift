@@ -4,6 +4,19 @@ import Testing
 
 @Suite("Canvas announcement academic signals")
 struct AcademicSignalTests {
+    @Test("Persisted provider errors retain actionable presentation across naming formats")
+    func legacyProviderFailureNames() {
+        for (legacy, canonical) in [("modelMismatch", "model_mismatch"),
+                                    ("rateLimited", "rate_limited"),
+                                    ("timedOut", "timed_out"),
+                                    ("insufficientBalance", "insufficient_balance")] {
+            #expect(AcademicProviderFailurePresentation.safe(legacy)
+                    == AcademicProviderFailurePresentation.safe(canonical))
+        }
+        #expect(AcademicProviderFailurePresentation.safe("modelMismatch")?.categoryKey == "AI model mismatch")
+        #expect(AcademicProviderFailurePresentation.safe("modelMismatch")?.retryable == false)
+    }
+
     @Test("Synthetic multilingual evaluation meets documented per-category thresholds")
     func multilingualEvaluation() {
         let classifier = DeterministicAcademicSignalClassifier()

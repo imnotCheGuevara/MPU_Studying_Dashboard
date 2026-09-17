@@ -291,7 +291,10 @@ struct AcademicProviderFailurePresentation: Equatable, Sendable {
 
     static func safe(_ raw: String?) -> Self? {
         guard let raw else { return nil }
-        switch raw {
+        // Older records use the provider enum's camelCase raw values.
+        let category = raw.replacingOccurrences(of: "([a-z])([A-Z])", with: "$1_$2",
+                                                options: .regularExpression).lowercased()
+        switch category {
         case "consent_required", "configuration":
             return .init(categoryKey: "AI consent or configuration", retryable: false,
                          recoveryKey: "Review AI settings in Campus Dashboard.")
@@ -316,10 +319,13 @@ struct AcademicProviderFailurePresentation: Equatable, Sendable {
         case "budget_exceeded":
             return .init(categoryKey: "Local AI budget reached", retryable: false,
                          recoveryKey: "Review the local AI budget in Campus Dashboard settings.")
+        case "model_mismatch":
+            return .init(categoryKey: "AI model mismatch", retryable: false,
+                         recoveryKey: "Update the app and review the selected model in AI settings.")
         case "malformed_response", "root_missing_key", "root_unknown_key",
              "signal_missing_core_key", "signal_unknown_key", "invalid_category",
              "invalid_primary_index", "invalid_date", "invalid_timezone", "bounds_violation",
-             "invalid_schedule_target", "type_mismatch", "model_mismatch", "tool_call_rejected", "truncated",
+             "invalid_schedule_target", "type_mismatch", "tool_call_rejected", "truncated",
              "content_filtered":
             return .init(categoryKey: "Provider response could not be safely used", retryable: false,
                          recoveryKey: "Use the retained local result or reprocess later.")

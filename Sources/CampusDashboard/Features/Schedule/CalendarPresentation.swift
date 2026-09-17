@@ -9,6 +9,7 @@ enum CalendarViewMode: String, CaseIterable, Identifiable, Sendable {
 }
 
 enum CalendarEventKind: String, CaseIterable, Identifiable, Sendable {
+    case manual
     case courseMeeting
     case officialDeadline
     case confirmedInferredDeadline
@@ -27,14 +28,14 @@ struct CalendarEvent: Identifiable, Equatable, Sendable {
     let end: Date
     let isAllDay: Bool
     let kind: CalendarEventKind
-    let source: SourceKind
+    let source: SourceKind?
     let location: String
     let isCancelled: Bool
     let sourceURL: String?
     let relatedSourceURL: String?
 
     init(id: String, objectID: UUID, courseID: UUID, title: String, start: Date, end: Date,
-         isAllDay: Bool, kind: CalendarEventKind, source: SourceKind, location: String,
+         isAllDay: Bool, kind: CalendarEventKind, source: SourceKind?, location: String,
          isCancelled: Bool, sourceURL: String?, relatedSourceURL: String? = nil) {
         self.id = id; self.objectID = objectID; self.courseID = courseID; self.title = title
         self.start = start; self.end = end; self.isAllDay = isAllDay; self.kind = kind
@@ -50,7 +51,7 @@ struct CalendarEventFilter: Equatable, Sendable {
 
     func includes(_ event: CalendarEvent) -> Bool {
         (courseIDs.isEmpty || courseIDs.contains(event.courseID))
-            && (sources.isEmpty || sources.contains(event.source))
+            && (sources.isEmpty || event.source.map { sources.contains($0) } == true)
             && (kinds.isEmpty || kinds.contains(event.kind))
     }
 }

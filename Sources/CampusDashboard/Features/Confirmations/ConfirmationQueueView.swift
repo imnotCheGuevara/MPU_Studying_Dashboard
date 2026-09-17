@@ -87,7 +87,8 @@ struct ConfirmationQueueView: View {
                             academicCorrectionTarget = .init(analysis: item, signal: nil, courseID: announcement.courseID)
                         }
                     }
-                    Button(model.text("Reprocess")) { Task { await model.reprocessAcademicSignals(for: item.announcementID) } }
+                    Button(model.text(model.reprocessingAnnouncementIDs.contains(item.announcementID) ? "Processing…" : "Reprocess")) { Task { await model.reprocessAcademicSignals(for: item.announcementID) } }
+                        .disabled(model.reprocessingAnnouncementIDs.contains(item.announcementID))
                     if model.ignoredAcademicAnalysisIDs.contains(item.id) {
                         Button(model.text("Undo")) { model.setAcademicAnalysisIgnored(item.id, ignored: false) }
                     } else {

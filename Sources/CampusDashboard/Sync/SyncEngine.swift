@@ -191,7 +191,7 @@ final class DeterministicSyncEngine: SyncService, @unchecked Sendable {
                 ]
             )
             try database.execute(
-                "UPDATE source_accounts SET last_successful_sync = ?, updated_at = ? WHERE id = ?",
+                "UPDATE source_accounts SET authorization_state = 'authorized', last_successful_sync = ?, updated_at = ? WHERE id = ?",
                 bindings: [
                     .real(finishedAt.timeIntervalSince1970), .real(finishedAt.timeIntervalSince1970),
                     .text(account.id.uuidString)
@@ -797,21 +797,29 @@ final class DeterministicSyncEngine: SyncService, @unchecked Sendable {
         startedAt: Date, finishedAt: Date, error: SyncEngineError
     ) throws {
         let account = try ensureAccount(account, at: startedAt)
-        try database.execute(
-            """
-            INSERT OR REPLACE INTO sync_runs
-              (id, trigger_kind, source_account_id, fetch_state, normalize_state, persistence_state,
-               read_count, inserted_count, updated_count, cancelled_count, started_at, finished_at,
-               error_category, redacted_error_summary)
-            VALUES (?, ?, ?, ?, 'not_started', 'not_started', 0, 0, 0, 0, ?, ?, ?, ?)
-            """,
-            bindings: [
-                .text(id.uuidString), .text(trigger.rawValue), .text(account.id.uuidString),
-                .text(error.category == .cancelled ? "cancelled" : "failed"),
-                .real(startedAt.timeIntervalSince1970), .real(finishedAt.timeIntervalSince1970),
-                .text(error.category.rawValue), .text(error.category.rawValue)
-            ]
-        )
+        try database.transaction {
+            try database.execute(
+                """
+                INSERT OR REPLACE INTO sync_runs
+                  (id, trigger_kind, source_account_id, fetch_state, normalize_state, persistence_state,
+                   read_count, inserted_count, updated_count, cancelled_count, started_at, finished_at,
+                   error_category, redacted_error_summary)
+                VALUES (?, ?, ?, ?, 'not_started', 'not_started', 0, 0, 0, 0, ?, ?, ?, ?)
+                """,
+                bindings: [
+                    .text(id.uuidString), .text(trigger.rawValue), .text(account.id.uuidString),
+                    .text(error.category == .cancelled ? "cancelled" : "failed"),
+                    .real(startedAt.timeIntervalSince1970), .real(finishedAt.timeIntervalSince1970),
+                    .text(error.category.rawValue), .text(error.category.rawValue)
+                ]
+            )
+            if error.category == .unauthorized {
+                try database.execute(
+                    "UPDATE source_accounts SET authorization_state = 'unauthorized', updated_at = ? WHERE id = ?",
+                    bindings: [.real(finishedAt.timeIntervalSince1970), .text(account.id.uuidString)]
+                )
+            }
+        }
     }
 
     private func classify(_ error: Error) -> SyncEngineError {
@@ -839,7 +847,8 @@ final class DeterministicSyncEngine: SyncService, @unchecked Sendable {
             case .rateLimited: category = .rateLimited
             case .serverUnavailable: category = .temporaryServer
             case .timedOut, .offline, .transport: category = .offline
-            case .structuralChange, .partialResponse, .loginRedirect: category = .sourceChanged
+            case .loginRedirect: category = .unauthorized
+            case .structuralChange, .partialResponse: category = .sourceChanged
             case .malformedResponse, .unsafeRoute, .notFound: category = .malformedResponse
             case .configuration: category = .unknown
             }

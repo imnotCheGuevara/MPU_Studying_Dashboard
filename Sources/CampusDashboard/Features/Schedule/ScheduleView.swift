@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ScheduleView: View {
     @ObservedObject var model: DashboardModel
+    @State private var addingEvent = false
     @State private var mode: CalendarViewMode = .week
     @State private var anchor: Date
     @State private var filter = CalendarEventFilter()
@@ -31,6 +32,7 @@ struct ScheduleView: View {
                 }
             }
         }
+        .sheet(isPresented: $addingEvent) { ManualEventEditor(model: model, event: ManualEvent(start: anchor)) }
         .sheet(item: $selectedEvent) { event in EventDetailSheet(event: event, model: model) }
     }
 
@@ -39,9 +41,8 @@ struct ScheduleView: View {
     }
 
     private var events: [CalendarEvent] {
-        CalendarPresentation.filteredEvents(
-            from: model.snapshot, academicSignals: model.academicSignals, filter: filter
-        )
+        (CalendarPresentation.events(from: model.snapshot, academicSignals: model.academicSignals)
+            + model.manualEvents.map(\.calendarEvent)).filter(filter.includes)
     }
 
     private var visibleEvents: [CalendarEvent] {
@@ -73,6 +74,7 @@ struct ScheduleView: View {
                 .help(model.text("Next")).accessibilityLabel(model.text("Next"))
             Spacer()
             filterMenu
+            Button { addingEvent = true } label: { Label(model.text("Add event"), systemImage: "plus") }
         }
     }
 
@@ -210,7 +212,7 @@ struct ScheduleView: View {
 
     private func kindLabel(_ value: CalendarEventKind) -> String {
         switch value {
-        case .courseMeeting: "Course meeting"
+        case .manual: "Manual event"; case .courseMeeting: "Course meeting"
         case .officialDeadline: "Official deadline"
         case .confirmedInferredDeadline: "Confirmed inferred deadline"
         case .confirmedExam: "Confirmed exam"
@@ -219,17 +221,20 @@ struct ScheduleView: View {
     }
 
     private func eventColor(_ kind: CalendarEventKind) -> Color {
-        switch kind { case .courseMeeting: .blue; case .officialDeadline: .red; case .confirmedInferredDeadline: .purple; case .confirmedExam: .orange; case .confirmedScheduleChange: .teal }
+        switch kind { case .manual: .green; case .courseMeeting: .blue; case .officialDeadline: .red; case .confirmedInferredDeadline: .purple; case .confirmedExam: .orange; case .confirmedScheduleChange: .teal }
     }
 
     private func eventSymbol(_ kind: CalendarEventKind) -> String {
-        switch kind { case .courseMeeting: "person.2"; case .officialDeadline: "exclamationmark.circle.fill"; case .confirmedInferredDeadline: "checkmark.sparkles"; case .confirmedExam: "graduationcap.fill"; case .confirmedScheduleChange: "arrow.triangle.2.circlepath" }
+        switch kind { case .manual: "pencil"; case .courseMeeting: "person.2"; case .officialDeadline: "exclamationmark.circle.fill"; case .confirmedInferredDeadline: "checkmark.sparkles"; case .confirmedExam: "graduationcap.fill"; case .confirmedScheduleChange: "arrow.triangle.2.circlepath" }
     }
 }
 
 struct EventDetailSheet: View {
     let event: CalendarEvent
     @ObservedObject var model: DashboardModel
+    @State private var editing = false
+    @State private var deleting = false
+    @State private var error: String?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -242,10 +247,17 @@ struct EventDetailSheet: View {
                 Spacer()
                 Button(model.text("Cancel")) { dismiss() }
             }
-            detail(model.text("Time"), event.isAllDay ? model.text("All-day") : model.format(event.start) + " – " + model.format(event.end))
+            detail(model.text("Time"), event.isAllDay ? model.format(event.start, date: .abbreviated, time: .omitted) + " – " + model.format(event.end.addingTimeInterval(-1), date: .abbreviated, time: .omitted) + " · " + model.text("All-day") : model.format(event.start) + " – " + model.format(event.end))
             if !event.location.isEmpty { detail(model.text("Location"), event.location) }
+            if event.kind == .manual {
+                HStack {
+                    Button(model.text("Edit event")) { editing = true }
+                    Button(model.text("Delete event"), role: .destructive) { deleting = true }
+                }
+                if let error { Text(error).foregroundStyle(.red) }
+            }
             detail(model.text("State"), model.text(event.isCancelled ? "Cancelled" : "Active"))
-            detail(model.text("Source"), event.source.rawValue)
+            detail(model.text("Source"), event.source?.rawValue ?? model.text("Manual event"))
             if let value = event.sourceURL, let url = URL(string: value) {
                 Link(model.text("Open original source"), destination: url)
             } else {
@@ -253,6 +265,17 @@ struct EventDetailSheet: View {
             }
             if let value = event.relatedSourceURL, let url = URL(string: value) {
                 Link(model.text("Open change announcement"), destination: url)
+            }
+        }
+        .sheet(isPresented: $editing, onDismiss: { dismiss() }) {
+            if let value = model.manualEvents.first(where: { $0.id == event.objectID }) {
+                ManualEventEditor(model: model, event: value)
+            }
+        }
+        .confirmationDialog(model.text("Delete this event?"), isPresented: $deleting) {
+            Button(model.text("Delete event"), role: .destructive) {
+                do { try model.deleteManualEvent(event.objectID); dismiss() }
+                catch { self.error = model.text("Event could not be saved. Please try again.") }
             }
         }
         .padding(24).frame(width: 480)
@@ -264,9 +287,9 @@ struct EventDetailSheet: View {
     }
 
     private var kindLabel: String {
-        switch event.kind { case .courseMeeting: "Course meeting"; case .officialDeadline: "Official deadline"; case .confirmedInferredDeadline: "Confirmed inferred deadline"; case .confirmedExam: "Confirmed exam"; case .confirmedScheduleChange: "Confirmed schedule change" }
+        switch event.kind { case .manual: "Manual event"; case .courseMeeting: "Course meeting"; case .officialDeadline: "Official deadline"; case .confirmedInferredDeadline: "Confirmed inferred deadline"; case .confirmedExam: "Confirmed exam"; case .confirmedScheduleChange: "Confirmed schedule change" }
     }
     private var color: Color {
-        switch event.kind { case .courseMeeting: .blue; case .officialDeadline: .red; case .confirmedInferredDeadline: .purple; case .confirmedExam: .orange; case .confirmedScheduleChange: .teal }
+        switch event.kind { case .manual: .green; case .courseMeeting: .blue; case .officialDeadline: .red; case .confirmedInferredDeadline: .purple; case .confirmedExam: .orange; case .confirmedScheduleChange: .teal }
     }
 }

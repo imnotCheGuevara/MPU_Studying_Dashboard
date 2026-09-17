@@ -58,9 +58,11 @@ enum NeedsReviewPolicy {
 
 @MainActor
 final class DashboardModel: ObservableObject {
+    @Published private(set) var reprocessingAnnouncementIDs: Set<UUID> = []
     @Published var selectedSection: AppSection = .today
     @Published var language: AppLanguage = .english
     @Published private(set) var scenario: DemoScenario
+    @Published private(set) var manualEvents: [ManualEvent] = []
     @Published private(set) var snapshot: DashboardSnapshot
     let isPreviewMode: Bool
     @Published private(set) var isRefreshing = false
@@ -447,7 +449,9 @@ final class DashboardModel: ObservableObject {
     }
 
     func reprocessAcademicSignals(for announcementID: UUID) async {
-        guard let academicSignalCoordinator else { return }
+        guard let academicSignalCoordinator,
+              reprocessingAnnouncementIDs.insert(announcementID).inserted else { return }
+        defer { reprocessingAnnouncementIDs.remove(announcementID) }
         _ = await academicSignalCoordinator.reprocess(
             announcementID: announcementID,
             locale: language == .english ? "en" : "zh-Hans"
@@ -865,6 +869,7 @@ final class DashboardModel: ObservableObject {
         do {
             let result = try await Task.detached { try privacyDiagnostics.clear(category) }.value
             _ = result.deletedRows
+            if category == .localUserState { manualEvents = [] }
             privacyMessage = "Clear operation completed. Credentials and Apple Calendar events were not changed."
             if category == .sourceCache {
                 // Reconciliation may cancel obsolete local reminders, but the clear
@@ -1155,8 +1160,20 @@ final class DashboardModel: ObservableObject {
         }
     }
 
+    func saveManualEvent(_ event: ManualEvent) throws {
+        try localStateRepository.saveManualEvent(event)
+        manualEvents.removeAll { $0.id == event.id }
+        manualEvents.append(event)
+    }
+
+    func deleteManualEvent(_ id: UUID) throws {
+        try localStateRepository.deleteManualEvent(id)
+        manualEvents.removeAll { $0.id == id }
+    }
+
     private func restoreLocalState() {
         do {
+            manualEvents = try localStateRepository.manualEvents()
             for index in snapshot.tasks.indices {
                 if let state = try localStateRepository.state(
                     objectType: "learning_task", objectID: snapshot.tasks[index].id.uuidString

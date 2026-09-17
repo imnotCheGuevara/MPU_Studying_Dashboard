@@ -348,6 +348,111 @@ struct SIwebConnectorTests {
         }
     }
 
+    @Test("Validated responses persist only eligible server-rotated cookies")
+    func serverRotatedSessionCookie() async throws {
+        let secrets = FakeSecretStore()
+        try secrets.set(
+            Data("KEEP=original; SYNTHETIC=old".utf8),
+            account: SIwebConfiguration.sessionAccount
+        )
+        let transport = StubSIwebTransport(outcomes: [
+            .response(
+                status: 200,
+                data: siwebFixture("empty"),
+                headers: [
+                    "Content-Type": "text/html",
+                    "Set-Cookie": "SYNTHETIC=rotated; Domain=siweb.invalid; Path=/siweb; Secure; HttpOnly"
+                ]
+            )
+        ])
+        let connector = try makeConnector(
+            transport: transport,
+            authorizer: KeychainSIwebSessionAuthorizer(
+                secretStore: secrets, account: SIwebConfiguration.sessionAccount
+            ),
+            sessionLifecycle: KeychainSIwebSessionLifecycle(
+                secretStore: secrets, account: SIwebConfiguration.sessionAccount
+            )
+        )
+
+        _ = try await connector.meetings(pageToken: nil)
+
+        let stored = try secrets.data(account: SIwebConfiguration.sessionAccount)
+        #expect(String(data: stored, encoding: .utf8) == "KEEP=original; SYNTHETIC=rotated")
+        #expect(await transport.requests.first?.value(forHTTPHeaderField: "Cookie") ==
+                "KEEP=original; SYNTHETIC=old")
+    }
+
+    @Test("Untrusted or structurally invalid responses cannot rotate the stored session")
+    func rejectedSessionRotation() async throws {
+        let secrets = FakeSecretStore()
+        try secrets.set(Data("SYNTHETIC=old".utf8), account: SIwebConfiguration.sessionAccount)
+        let transport = StubSIwebTransport(outcomes: [
+            .response(
+                status: 200,
+                data: siwebFixture("empty"),
+                headers: [
+                    "Content-Type": "text/html",
+                    "Set-Cookie": "SYNTHETIC=insecure; Domain=siweb.invalid; Path=/siweb"
+                ]
+            ),
+            .response(
+                status: 200,
+                data: siwebFixture("changed-dom"),
+                headers: [
+                    "Content-Type": "text/html",
+                    "Set-Cookie": "SYNTHETIC=unvalidated; Domain=siweb.invalid; Path=/siweb; Secure"
+                ]
+            )
+        ])
+        let connector = try makeConnector(
+            transport: transport,
+            authorizer: KeychainSIwebSessionAuthorizer(
+                secretStore: secrets, account: SIwebConfiguration.sessionAccount
+            ),
+            sessionLifecycle: KeychainSIwebSessionLifecycle(
+                secretStore: secrets, account: SIwebConfiguration.sessionAccount
+            )
+        )
+
+        _ = try await connector.meetings(pageToken: nil)
+        await expectSIwebErrorAsync(.structuralChange) {
+            _ = try await connector.meetings(pageToken: nil)
+        }
+
+        let stored = try secrets.data(account: SIwebConfiguration.sessionAccount)
+        #expect(String(data: stored, encoding: .utf8) == "SYNTHETIC=old")
+    }
+
+    @Test("A rejected session is removed and cannot generate another network request")
+    func rejectedSessionStopsRequests() async throws {
+        let secrets = FakeSecretStore()
+        try secrets.set(Data("SYNTHETIC=expired".utf8), account: SIwebConfiguration.sessionAccount)
+        let transport = StubSIwebTransport(outcomes: [
+            .response(status: 302, data: Data(), headers: ["Location": "/sso/login"])
+        ])
+        let connector = try makeConnector(
+            transport: transport,
+            authorizer: KeychainSIwebSessionAuthorizer(
+                secretStore: secrets, account: SIwebConfiguration.sessionAccount
+            ),
+            sessionLifecycle: KeychainSIwebSessionLifecycle(
+                secretStore: secrets, account: SIwebConfiguration.sessionAccount
+            )
+        )
+
+        await expectSIwebErrorAsync(.loginRedirect) {
+            _ = try await connector.meetings(pageToken: nil)
+        }
+        #expect(throws: SecretStoreError.notFound) {
+            try secrets.data(account: SIwebConfiguration.sessionAccount)
+        }
+        await expectSIwebErrorAsync(.sessionExpired) {
+            _ = try await connector.meetings(pageToken: nil)
+        }
+        #expect(await transport.requests.count == 1)
+    }
+
     @Test("Web login captures only secure unexpired target-domain session cookies")
     func webSessionCookieBoundary() throws {
         let future = Date(timeIntervalSince1970: 2_000_000_000)
@@ -395,6 +500,8 @@ struct SIwebConnectorTests {
 
     private func makeConnector(
         transport: any SIwebHTTPTransport,
+        authorizer: any SIwebSessionAuthorizer = SyntheticSIwebAuthorizer(),
+        sessionLifecycle: (any SIwebSessionLifecycle)? = nil,
         sleeper: any SIwebRetrySleeper = SIwebRecordingSleeper(),
         maximumAttempts: Int = 1,
         minimumInterval: TimeInterval = 0,
@@ -407,7 +514,8 @@ struct SIwebConnectorTests {
             maximumConcurrentRequests: maximumConcurrentRequests
         )
         return SIwebConnector(
-            configuration: configuration, authorizer: SyntheticSIwebAuthorizer(),
+            configuration: configuration, authorizer: authorizer,
+            sessionLifecycle: sessionLifecycle,
             transport: transport, sleeper: sleeper, jitter: FixedSIwebJitter(),
             maximumAttempts: maximumAttempts
         )

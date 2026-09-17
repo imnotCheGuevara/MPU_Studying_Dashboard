@@ -41,7 +41,7 @@ struct TodayView: View {
     private var agendaEvents: [CalendarEvent] {
         TodayPresentation.agendaEvents(
             from: model.snapshot, academicSignals: model.academicSignals,
-            on: model.now, timeZone: model.presentationTimeZone
+            on: model.now, timeZone: model.presentationTimeZone, manualEvents: model.manualEvents
         )
     }
 
@@ -262,7 +262,7 @@ struct TodayView: View {
     }
 
     private func eventSubtitle(_ event: CalendarEvent) -> String {
-        [courseName(event.courseID), event.location].filter { !$0.isEmpty }.joined(separator: " · ")
+        [event.kind == .manual ? model.text("Manual event") : courseName(event.courseID), event.location].filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
     private func courseName(_ id: UUID) -> String {
@@ -300,10 +300,10 @@ enum TodayPresentation {
         from snapshot: DashboardSnapshot,
         academicSignals: [AcademicSignalRecord],
         on date: Date,
-        timeZone: TimeZone
+        timeZone: TimeZone, manualEvents: [ManualEvent] = []
     ) -> [CalendarEvent] {
         let range = CalendarDateMath.range(for: .day, anchor: date, timeZone: timeZone)
-        return CalendarPresentation.events(from: snapshot, academicSignals: academicSignals).filter {
+        return (CalendarPresentation.events(from: snapshot, academicSignals: academicSignals) + manualEvents.map(\.calendarEvent)).sorted { $0.start < $1.start }.filter {
             $0.start < range.end && $0.end > range.start
         }
     }
